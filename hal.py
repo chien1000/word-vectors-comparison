@@ -2,6 +2,7 @@ import re
 import pickle
 import six
 from collections import Mapping, defaultdict
+import numbers
 import numpy as np
 import scipy.sparse as sp
 import array
@@ -46,10 +47,10 @@ class BaseEstimator(object):
        
 #     def set_params(self, **params):
        
-    def __repr__(self):
-        class_name = self.__class__.__name__
-        return '%s(%s)' % (class_name, _pprint(self.get_params(deep=False),
-                                               offset=len(class_name),),)
+    # def __repr__(self):
+    #     class_name = self.__class__.__name__
+    #     return '%s(%s)' % (class_name, _pprint(self.get_params(deep=False),
+    #                                            offset=len(class_name),),)
 
     def __getstate__(self):
         try:
@@ -250,7 +251,7 @@ class VectorizerMixin(object):
                              self.analyzer)
 
     def _validate_vocabulary(self): #使用使用者傳入的字典需要先檢查
-        vocabulary = self.vocabulary
+        vocabulary = self.vocabulary 
         if vocabulary is not None:
             if isinstance(vocabulary, set):
                 vocabulary = sorted(vocabulary)
@@ -273,7 +274,7 @@ class VectorizerMixin(object):
             if not vocabulary:
                 raise ValueError("empty vocabulary passed to fit")
             self.fixed_vocabulary_ = True
-            self.vocabulary_ = dict(vocabulary)
+            self.vocabulary_ = dict(vocabulary) #vocabulary_為調整過的
         else:
             self.fixed_vocabulary_ = False
 
@@ -284,8 +285,8 @@ class VectorizerMixin(object):
 
         if len(self.vocabulary_) == 0:
             raise ValueError("Vocabulary is empty")
-            
-class HalCountVectorizer(BaseEstimator, VectorizerMixin):
+
+class HalWordVectorizer(BaseEstimator, VectorizerMixin):
     """Convert a collection of text documents to a matrix of token counts
     This implementation produces a sparse representation of the counts using
     scipy.sparse.csr_matrix.
@@ -350,34 +351,15 @@ class HalCountVectorizer(BaseEstimator, VectorizerMixin):
         if ``analyzer == 'word'``. The default regexp select tokens of 2
         or more alphanumeric characters (punctuation is completely ignored
         and always treated as a token separator).
-    max_df : float in range [0.0, 1.0] or int, default=1.0
-        When building the vocabulary ignore terms that have a document
-        frequency strictly higher than the given threshold (corpus-specific
-        stop words).
-        If float, the parameter represents a proportion of documents, integer
-        absolute counts.
-        This parameter is ignored if vocabulary is not None.
-    min_df : float in range [0.0, 1.0] or int, default=1
-        When building the vocabulary ignore terms that have a document
-        frequency strictly lower than the given threshold. This value is also
-        called cut-off in the literature.
-        If float, the parameter represents a proportion of documents, integer
-        absolute counts.
-        This parameter is ignored if vocabulary is not None.
     max_features : int or None, default=None
-        If not None, build a vocabulary that only consider the top
-        max_features ordered by term frequency across the corpus.
-        This parameter is ignored if vocabulary is not None.
+        If not None, conserving k context words(columns) with the 
+        highest variance.
     vocabulary : Mapping or iterable, optional
         Either a Mapping (e.g., a dict) where keys are terms and values are
         indices in the feature matrix, or an iterable over terms. If not
         given, a vocabulary is determined from the input documents. Indices
         in the mapping should not be repeated and should not have any gap
         between 0 and the largest index.
-    binary : boolean, default=False
-        If True, all non zero counts are set to 1. This is useful for discrete
-        probabilistic models that model binary events rather than integer
-        counts.
     dtype : type, optional
         Type of the matrix returned by fit_transform() or transform().
     Attributes
@@ -404,9 +386,8 @@ class HalCountVectorizer(BaseEstimator, VectorizerMixin):
                  decode_error='strict', strip_accents=None,
                  lowercase=True, preprocessor=None, tokenizer=None,
                  stop_words=None, token_pattern=r"(?u)\b\w\w+\b",
-                 ngram_range=(1, 1), analyzer='word',
-                 max_df=1.0, min_df=1, max_features=None,
-                 vocabulary=None, binary=False, dtype=np.int64):
+                 ngram_range=(1, 1), analyzer='word', max_features=None,
+                 vocabulary=None, dtype=np.int64):
         
         self.window_size = window_size
         self.input = input
@@ -419,10 +400,6 @@ class HalCountVectorizer(BaseEstimator, VectorizerMixin):
         self.lowercase = lowercase
         self.token_pattern = token_pattern
         self.stop_words = stop_words
-        self.max_df = max_df
-        self.min_df = min_df
-        if max_df < 0 or min_df < 0:
-            raise ValueError("negative value for max_df or min_df")
         self.max_features = max_features
         if max_features is not None:
             if (not isinstance(max_features, numbers.Integral) or
@@ -432,75 +409,21 @@ class HalCountVectorizer(BaseEstimator, VectorizerMixin):
                     % max_features)
         self.ngram_range = ngram_range
         self.vocabulary = vocabulary
-        self.binary = binary
         self.dtype = dtype
 
-    def _sort_features(self, X, vocabulary):
-        """Sort features by name
-        Returns a reordered matrix and modifies the vocabulary in place
-        """
-        sorted_features = sorted(six.iteritems(vocabulary))
-        map_index = np.empty(len(sorted_features), dtype=np.int32)
-        for new_val, (term, old_val) in enumerate(sorted_features):
-            vocabulary[term] = new_val
-            map_index[old_val] = new_val
 
-        X.indices = map_index.take(X.indices, mode='clip')
-        return X
-
-    def _limit_features(self, X, vocabulary, high=None, low=None,
-                        limit=None):
-        """Remove too rare or too common features.
-        Prune features that are non zero in more samples than high or less
-        documents than low, modifying the vocabulary, and restricting it to
-        at most the limit most frequent.
-        This does not prune samples with zero features.
-        """
-        if high is None and low is None and limit is None:
-            return X, set()
-
-        # Calculate a mask based on document frequencies
-        dfs = _document_frequency(X)
-        tfs = np.asarray(X.sum(axis=0)).ravel()
-        mask = np.ones(len(dfs), dtype=bool)
-        if high is not None:
-            mask &= dfs <= high
-        if low is not None:
-            mask &= dfs >= low
-        if limit is not None and mask.sum() > limit:
-            mask_inds = (-tfs[mask]).argsort()[:limit]
-            new_mask = np.zeros(len(dfs), dtype=bool)
-            new_mask[np.where(mask)[0][mask_inds]] = True
-            mask = new_mask
-
-        new_indices = np.cumsum(mask) - 1  # maps old indices to new
-        removed_terms = set()
-        for term, old_index in list(six.iteritems(vocabulary)):
-            if mask[old_index]:
-                vocabulary[term] = new_indices[old_index]
-            else:
-                del vocabulary[term]
-                removed_terms.add(term)
-        kept_indices = np.where(mask)[0]
-        if len(kept_indices) == 0:
-            raise ValueError("After pruning, no terms remain. Try a lower"
-                             " min_df or a higher max_df.")
-        return X[:, kept_indices], removed_terms
-
-    def _count_vocab(self, raw_documents, fixed_vocab):
+    def _count_cooccurence(self, raw_documents, fixed_vocab):
         """Create sparse feature matrix, and vocabulary where fixed_vocab=False
         """
         if fixed_vocab:
             vocabulary = self.vocabulary_
-            context_vocabulary = self.context_vocabulary_
-
         else:
             # Add a new value when a new vocabulary item is seen
             vocabulary = defaultdict()
             vocabulary.default_factory = vocabulary.__len__ #自動幫新字產生index
 
-            context_vocabulary = defaultdict()
-            context_vocabulary.default_factory = context_vocabulary.__len__ #自動幫新字產生index
+        context_vocabulary = defaultdict()
+        context_vocabulary.default_factory = context_vocabulary.__len__ #自動幫新字產生index
 
         #
         analyze = self.build_analyzer() #如何斷字 by word, char or ngram?
@@ -568,141 +491,51 @@ class HalCountVectorizer(BaseEstimator, VectorizerMixin):
         cooccurence_matrix = sp.coo_matrix((values, (row, col)), shape=(len(vocabulary), 
                                                                          len(context_vocabulary))
                                            ,dtype=self.dtype)
-        cooccurence_matrix = cooccurence_matrix.tocsr()
+        cooccurence_matrix = cooccurence_matrix.tocsc()
         # cooccurence_matrix.sort_indices()
 
 #         print(cooccurence_matrix.toarray())
-        return vocabulary, cooccurence_matrix
+        return vocabulary, context_vocabulary, cooccurence_matrix
 
-
-    def fit(self, raw_documents, y=None):
-        """Learn a vocabulary dictionary of all tokens in the raw documents.
-        Parameters
-        ----------
-        raw_documents : iterable
-            An iterable which yields either str, unicode or file objects.
-        Returns
-        -------
-        self
-        """
-        self.fit_transform(raw_documents)
-        return self
-
-    def fit_transform(self, raw_documents, y=None):
-        """Learn the vocabulary dictionary and return term-document matrix.
-        This is equivalent to fit followed by transform, but more efficiently
-        implemented.
-        Parameters
-        ----------
-        raw_documents : iterable
-            An iterable which yields either str, unicode or file objects.
-        Returns
-        -------
-        X : array, [n_samples, n_features]
-            Document-term matrix.
-        """
-        # We intentionally don't call the transform method to make
-        # fit_transform overridable without unwanted side effects in
-        # TfidfVectorizer.
-        if isinstance(raw_documents, six.string_types):
-            raise ValueError(
-                "Iterable over raw text documents expected, "
-                "string object received.")
+    def fit_word_vectors(self, raw_documents):
 
         self._validate_vocabulary()
-        max_df = self.max_df
-        min_df = self.min_df
-        max_features = self.max_features
 
-        vocabulary, X = self._count_vocab(raw_documents,
-                                          self.fixed_vocabulary_)
+        vocabulary, context_vocabulary, cooccurence_matrix = self._count_cooccurence(raw_documents, False)
+        self.vocabulary_ = vocabulary
+        self.context_vocabulary = context_vocabulary
+        self.cooccurence_matrix = cooccurence_matrix
 
-        if self.binary:
-            X.data.fill(1)
+        if self.max_features: #conserve top k cols with highest variance
+            # compute variance 
+            # E[X^2] - (E[X])^2 or np.var?
+            squared = cooccurence_matrix.copy() 
+            squared.data = np.power(squared.data, 2)
+            mean_of_squared = squared.mean(0)
+            squared_of_mean = np.power(cooccurence_matrix.mean(0), 2)
+            variance = (mean_of_squared - squared_of_mean).A
+            variance = np.squeeze(variance, axis = 0)
+            del squared
 
-        if not self.fixed_vocabulary_:
-            X = self._sort_features(X, vocabulary)
+            # conserve top k cols
+            k = self.max_features
+            topk_ind = np.sort(np.argsort(-variance)[:k])
+            self.cooccurence_matrix = cooccurence_matrix[:, topk_ind]
 
-            n_doc = X.shape[0]
-            max_doc_count = (max_df
-                             if isinstance(max_df, numbers.Integral)
-                             else max_df * n_doc)
-            min_doc_count = (min_df
-                             if isinstance(min_df, numbers.Integral)
-                             else min_df * n_doc)
-            if max_doc_count < min_doc_count:
-                raise ValueError(
-                    "max_df corresponds to < documents than min_df")
-            X, self.stop_words_ = self._limit_features(X, vocabulary,
-                                                       max_doc_count,
-                                                       min_doc_count,
-                                                       max_features)
+            #update context vobabulary
+            terms = list(context_vocabulary.keys())
+            indices = np.array(list(context_vocabulary.values()))
+            sort_ind = np.argsort(indices)
+            inverse_context_vocabulary = [terms[ind] for ind in sort_ind]
+            new_context_vocabulary = {inverse_context_vocabulary[ind]:new_ind for new_ind, ind in enumerate(topk_ind)}
+            self.context_vocabulary = new_context_vocabulary
 
-            self.vocabulary_ = vocabulary
-
-        return X
-
-    def transform(self, raw_documents):
-        """Transform documents to document-term matrix.
-        Extract token counts out of raw text documents using the vocabulary
-        fitted with fit or the one provided to the constructor.
-        Parameters
-        ----------
-        raw_documents : iterable
-            An iterable which yields either str, unicode or file objects.
-        Returns
-        -------
-        X : sparse matrix, [n_samples, n_features]
-            Document-term matrix.
-        """
-        if isinstance(raw_documents, six.string_types):
-            raise ValueError(
-                "Iterable over raw text documents expected, "
-                "string object received.")
-
-        if not hasattr(self, 'vocabulary_'):
-            self._validate_vocabulary()
-
-        self._check_vocabulary()
-
-        # use the same matrix-building strategy as fit_transform
-        _, X = self._count_vocab(raw_documents, fixed_vocab=True)
-        if self.binary:
-            X.data.fill(1)
-        return X
-
-    def inverse_transform(self, X):
-        """Return terms per document with nonzero entries in X.
-        Parameters
-        ----------
-        X : {array, sparse matrix}, shape = [n_samples, n_features]
-        Returns
-        -------
-        X_inv : list of arrays, len = n_samples
-            List of arrays of terms.
-        """
-        self._check_vocabulary()
-
-        if sp.issparse(X):
-            # We need CSR format for fast row manipulations.
-            X = X.tocsr()
-        else:
-            # We need to convert X to a matrix, so that the indexing
-            # returns 2D objects
-            X = np.asmatrix(X)
-        n_samples = X.shape[0]
-
-        terms = np.array(list(self.vocabulary_.keys()))
-        indices = np.array(list(self.vocabulary_.values()))
-        inverse_vocabulary = terms[np.argsort(indices)]
-
-        return [inverse_vocabulary[X[i, :].nonzero()[1]].ravel()
-                for i in range(n_samples)]
+        return self
 
     def get_feature_names(self):
         """Array mapping from feature integer indices to feature name"""
         self._check_vocabulary()
 
-        return [t for t, i in sorted(six.iteritems(self.vocabulary_),
+        return [t for t, i in sorted(six.iteritems(self.context_vocabulary),
                                      key=itemgetter(1))] #iteritems: (key,value), 因此是根據value做排序
 
