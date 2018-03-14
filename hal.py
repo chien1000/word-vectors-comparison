@@ -9,6 +9,8 @@ import array
 from operator import itemgetter
 
 from stop_words import ENGLISH_STOP_WORDS
+from base import BaseWordVectorizer
+from exceptions import *
 
 def _check_stop_list(stop):
     if stop == "english":
@@ -286,7 +288,7 @@ class VectorizerMixin(object):
         if len(self.vocabulary_) == 0:
             raise ValueError("Vocabulary is empty")
 
-class HalWordVectorizer(BaseEstimator, VectorizerMixin):
+class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
     """Convert a collection of text documents to a matrix of token counts
     This implementation produces a sparse representation of the counts using
     scipy.sparse.csr_matrix.
@@ -389,6 +391,8 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin):
                  ngram_range=(1, 1), analyzer='word', max_features=None,
                  vocabulary=None, dtype=np.int64):
         
+        # super(HalWordVectorizer, self).__init__()
+
         self.window_size = window_size
         self.input = input
         self.encoding = encoding
@@ -539,3 +543,18 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin):
         return [t for t, i in sorted(six.iteritems(self.context_vocabulary),
                                      key=itemgetter(1))] #iteritems: (key,value), 因此是根據value做排序
 
+    def __getitem__(self, key):
+
+        if not hasattr(self, 'cooccurence_matrix'):
+            raise NotFittedError('Raw documented needed be fed first to estimate word vectors before\
+             acquiring specific word vector. Call fit_word_vectors(raw_documents)')
+
+        ind = self.vocabulary_.get(key)
+        if not ind:
+            raise ValueError('term {} is not in the vocabulary'.format(key))
+
+        word_vec = self.cooccurence_matrix[ind, :].toarray().squeeze()
+        return word_vec
+
+
+#normalization???
