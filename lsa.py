@@ -29,7 +29,7 @@ class LsaWordVectorizer(BaseWordVectorizer):
 
     def fit_word_vectors(self, raw_documents):
         dtm = self.vectorizer.fit_transform(raw_documents)
-        self.vobabulary_ = self.vectorizer.vobabulary_
+        self.vocabulary_ = self.vectorizer.vocabulary_
 
         dtm = dtm.asfptype()
         svd = TruncatedSVD(self.vector_dim, algorithm = 'arpack')
@@ -39,6 +39,21 @@ class LsaWordVectorizer(BaseWordVectorizer):
         # dtm_svd = svd.fit_transform(dtm) # doc_len * vector_dim
         # dtm_svd = Normalizer(copy=False).fit_transform(dtm_svd) 
 
+    def get_similarity(self, term1, term2):
+
+        ind1 = self.vocabulary_.get(term1)
+        ind2 = self.vocabulary_.get(term2)
+        if not ind1:
+            raise KeyError('term {} is not in the vocabulary'.format(term1))
+        if not ind2:
+            raise KeyError('term {} is not in the vocabulary'.format(term2))
+
+        v1 = self.svd.components_[:, ind1].reshape(1, -1)
+        v2 = self.svd.components_[:, ind2].reshape(1, -1)
+        sim = cosine_similarity(v1, v2)[0][0]
+
+        return sim
+
     def __getitem__(self, key):
 
         if not hasattr(self, 'svd'):
@@ -47,7 +62,7 @@ class LsaWordVectorizer(BaseWordVectorizer):
 
         ind = self.vocabulary_.get(key)
         if not ind:
-            raise ValueError('term {} is not in the vocabulary'.format(key))
+            raise KeyError('term {} is not in the vocabulary'.format(key))
 
         word_vec =  self.svd.components_[:, ind]
         return word_vec

@@ -7,6 +7,8 @@ import numpy as np
 import scipy.sparse as sp
 import array
 from operator import itemgetter
+from sklearn.preprocessing import normalize
+from sklearn.metrics.pairwise import pairwise_distances
 
 from stop_words import ENGLISH_STOP_WORDS
 from base import BaseWordVectorizer
@@ -507,8 +509,6 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
 
         vocabulary, context_vocabulary, cooccurence_matrix = self._count_cooccurence(raw_documents, False)
         self.vocabulary_ = vocabulary
-        self.context_vocabulary = context_vocabulary
-        self.cooccurence_matrix = cooccurence_matrix
 
         if self.max_features: #conserve top k cols with highest variance
             # compute variance 
@@ -524,7 +524,7 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
             # conserve top k cols
             k = self.max_features
             topk_ind = np.sort(np.argsort(-variance)[:k])
-            self.cooccurence_matrix = cooccurence_matrix[:, topk_ind]
+            cooccurence_matrix = cooccurence_matrix[:, topk_ind]
 
             #update context vobabulary
             terms = list(context_vocabulary.keys())
@@ -532,7 +532,14 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
             sort_ind = np.argsort(indices)
             inverse_context_vocabulary = [terms[ind] for ind in sort_ind]
             new_context_vocabulary = {inverse_context_vocabulary[ind]:new_ind for new_ind, ind in enumerate(topk_ind)}
-            self.context_vocabulary = new_context_vocabulary
+            context_vocabulary = new_context_vocabulary
+
+
+        #normalize
+        cooccurence_matrix = normalize(cooccurence_matrix, norm='l2', axis=1, copy=True)
+
+        self.context_vocabulary = context_vocabulary
+        self.cooccurence_matrix = cooccurence_matrix
 
         return self
 
@@ -543,6 +550,17 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
         return [t for t, i in sorted(six.iteritems(self.context_vocabulary),
                                      key=itemgetter(1))] #iteritems: (key,value), 因此是根據value做排序
 
+    def get_similarity(self, term1, term2):
+
+
+        v1 = self.__getitem__(term1)
+        v2 = self.__getitem__(term2)
+
+        distance = pairwise_distances(np.vstack((v1, v2)), metric='euclidean')[0,1]
+
+        sim = 1 / (distance + 1)
+        return sim
+
     def __getitem__(self, key):
 
         if not hasattr(self, 'cooccurence_matrix'):
@@ -551,7 +569,7 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
 
         ind = self.vocabulary_.get(key)
         if not ind:
-            raise ValueError('term {} is not in the vocabulary'.format(key))
+            raise KeyError('term {} is not in the vocabulary'.format(key))
 
         word_vec = self.cooccurence_matrix[ind, :].toarray().squeeze()
         return word_vec
