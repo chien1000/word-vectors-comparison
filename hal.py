@@ -386,11 +386,12 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
     be safely removed using delattr or set to None before pickling.
     """
 
-    def __init__(self, window_size = 10, input='content', encoding='utf-8',
+    def __init__(self, window_size = 10, max_features=None,
+                 input='content', encoding='utf-8',
                  decode_error='strict', strip_accents=None,
                  lowercase=True, preprocessor=None, tokenizer=None,
                  stop_words=None, token_pattern=r"(?u)\b\w\w+\b",
-                 ngram_range=(1, 1), analyzer='word', max_features=None,
+                 ngram_range=(1, 1), analyzer='word', 
                  vocabulary=None, dtype=np.int64):
         
         # super(HalWordVectorizer, self).__init__()
@@ -507,7 +508,7 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
 
         self._validate_vocabulary()
 
-        vocabulary, context_vocabulary, cooccurence_matrix = self._count_cooccurence(raw_documents, False)
+        vocabulary, context_vocabulary, cooccurence_matrix = self._count_cooccurence(raw_documents, self.fixed_vocabulary_)
         self.vocabulary_ = vocabulary
 
         if self.max_features: #conserve top k cols with highest variance
