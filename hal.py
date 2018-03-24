@@ -540,12 +540,15 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
         cooccurence_matrix = normalize(cooccurence_matrix, norm='l2', axis=1, copy=True)
 
         self.context_vocabulary = context_vocabulary
-        self.cooccurence_matrix = cooccurence_matrix
+        self.cooccurence_matrix = cooccurence_matrix.tocsr()
 
         return self
 
     def get_feature_names(self):
         """Array mapping from feature integer indices to feature name"""
+        if not hasattr(self, 'vocabulary_') or not hasattr(self, 'cooccurence_matrix'):
+            raise NotFittedError('Raw documents needed be fed first to get word vectors features.\
+                                            Call fit_word_vectors(raw_documents)')
         self._check_vocabulary()
 
         return [t for t, i in sorted(six.iteritems(self.context_vocabulary),
@@ -564,7 +567,7 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
 
     def __getitem__(self, key):
 
-        if not hasattr(self, 'cooccurence_matrix'):
+        if not hasattr(self, 'vocabulary_') or not hasattr(self, 'cooccurence_matrix'):
             raise NotFittedError('Raw documented needed be fed first to estimate word vectors before\
              acquiring specific word vector. Call fit_word_vectors(raw_documents)')
 
