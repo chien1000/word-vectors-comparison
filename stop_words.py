@@ -43,3 +43,23 @@ ENGLISH_STOP_WORDS = frozenset([
     "who", "whoever", "whole", "whom", "whose", "why", "will", "with",
     "within", "without", "would", "yet", "you", "your", "yours", "yourself",
     "yourselves"])
+
+
+#Leech, G., M. Deuchar and R. Hoogenraad (1982) English Grammar For Today. London: Macmillan. (Chapter 3)
+ENGLISH_CLOSED_CLASS_WORDS = frozenset(['the','a','an','this','that','these','those','all',
+    'some','any','no','every','each','either','neither','one','several','enough','such','many',
+    'much','more','most','few','fewer','fewest','little','less','least','what','which','whatever',
+    'whichever','half','I','me','my','mine','myself','we','us','ourselves','our','ours','you','yourself',
+    'yourselves','your','yours','he','him','himself','his','she','her','herself','hers','it','itself','its',
+    'they','them','themselves','their','theirs','this','that','these','those','all','some','any','none',
+    'each','either','neither','one','oneself','several','everybody','everyone','everything',
+    'somebody','someone','something','anybody','anyone','anything','nobody','nothing',
+    'many','much','more','most','few','fewer','fewest','little','less','least','who','whom','whose',
+    'what','which','whoever','whichever','whatever','about','above','across','after','against','along',
+    'alongside','amid','among','around','as','at','before','behind','below','beneath','beside','besides',
+    'between','beyond','by','despite','down','during','for','from','in','inside','into','of','off','on',
+    'opposite','outside','over','past','round','since','than','through','throughout','till','to','towards',
+    'toward','under','underneath','until','up','via','with','within','without','after','although','as',
+    'because','before','but','if','how','however','like','once','since','than','that','till','unless','until',
+    'when','whenever','wherever','wheras','whereby','whereupon','while','and','or','but','not',
+    'neither','can','will','may','shall','could','would','might','should','must'])
