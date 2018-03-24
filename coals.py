@@ -38,7 +38,7 @@ class CoalsWordVectorizer(HalWordVectorizer):
         if stop_words_user is not None:
             stop_words_set.update(stop_words_user)
         self.stop_words = stop_words_set
-        self.stop_words = None
+        # self.stop_words = None
         self.token_pattern = token_pattern
         self.ngram_range = ngram_range
         self.vocabulary = vocabulary
@@ -58,8 +58,8 @@ class CoalsWordVectorizer(HalWordVectorizer):
         context_vocabulary.default_factory = context_vocabulary.__len__ #自動幫新字產生index
 
         #
-        # analyze = self.build_analyzer() #如何斷字 by word, char or ngram?
-        analyze = lambda doc: list(map(str.lower, doc.split()))
+        analyze = self.build_analyzer() #如何斷字 by word, char or ngram?
+        # analyze = lambda doc: list(map(str.lower, doc.split()))
 
         row = _make_int_array()
         col = _make_int_array()
@@ -154,50 +154,29 @@ class CoalsWordVectorizer(HalWordVectorizer):
 
         multi_rsum_csum_value = np.multiply(col_sum.take(cooccurence_matrix.col), 
                                                             row_sum.take(cooccurence_matrix.row)).A.squeeze()
+        assert (multi_rsum_csum_value >=0).all() #check overflow
         multi_rsum_csum = sp.coo_matrix((multi_rsum_csum_value, 
                                                         (cooccurence_matrix.row, cooccurence_matrix.col)))
     
         deno = t_sum*cooccurence_matrix.tocsr() - multi_rsum_csum.tocsr()
-        # deno = deno.A
-
-        print(np.where(row_sum<=0))
-        print(row_sum[np.where(row_sum<=0)])
-
-        print((row_sum >= 0).all())
-        print((col_sum >= 0).all())
 
         row_d = np.multiply(row_sum , (t_sum - row_sum))
         col_d = np.multiply(col_sum , (t_sum - col_sum))
-        print((row_d >= 0).all())
-        print((col_d >= 0).all())
-
-        col_d_target = col_d.take(cooccurence_matrix.col)
-        row_d_target = row_d.take(cooccurence_matrix.row)
-        print((row_d_target >= 0).all())
-        print((col_d_target >= 0).all())
-
-        multi_rd_cd_value = np.multiply(col_d.take(cooccurence_matrix.col), 
-                                                           row_d.take(cooccurence_matrix.row)).A.squeeze()
-        multi_rd_cd = sp.coo_matrix((multi_rd_cd_value, 
-                                                        (cooccurence_matrix.row, cooccurence_matrix.col)))
-        print(col_d_target.dtype)
-        print(col_d_target[:10])
-        print(row_d_target[:10])
-        print(multi_rd_cd_value[:10])
-        print((multi_rd_cd_value< 0).all())
-        print(np.where(multi_rd_cd_value<0))
-        print(multi_rd_cd_value[np.where(multi_rd_cd_value<=0)].shape)
-        print(col_d_target[np.where(multi_rd_cd_value<=0)])
-        print(row_d_target[np.where(multi_rd_cd_value<=0)])
-
-        multi_rd_cd.data = 1 / np.sqrt(multi_rd_cd.data)
-        nome = multi_rd_cd.tocsc()
-        # nome = np.sqrt(row_d.dot(col_d))
-        # nome = nome.A
-        # nome.data = 1/nome.data
-
-        cooccurence_matrix = deno.multiply(nome)
+        assert (row_d >=0).all() #check overflow
+        assert (col_d >=0).all() #check overflow
       
+        col_d_target_value = col_d.take(cooccurence_matrix.col).A.squeeze()
+        col_d_target = sp.coo_matrix((col_d_target_value, 
+                                                    (cooccurence_matrix.row, cooccurence_matrix.col)))
+        col_d_target.data = 1 / np.sqrt(col_d_target.data)
+
+        row_d_target_value = row_d.take(cooccurence_matrix.row).A.squeeze()
+        row_d_target = sp.coo_matrix((row_d_target_value, 
+                                                    (cooccurence_matrix.row, cooccurence_matrix.col)))
+        row_d_target.data = 1 / np.sqrt(row_d_target.data)
+
+        cooccurence_matrix = deno.multiply(col_d_target.tocsr()).multiply(row_d_target.tocsr())
+        
         ##set negative values to 0
         cooccurence_matrix[cooccurence_matrix < 0] = 0
 
@@ -215,7 +194,6 @@ class CoalsWordVectorizer(HalWordVectorizer):
         v1 = self.__getitem__(term1)
         v2 = self.__getitem__(term2)
 
-        distance = pairwise_distances(np.vstack((v1, v2)), metric='euclidean')[0,1]
-
-        sim = 1 / (distance + 1)
+        sim =  np.corrcoef(v1, v2)[0, 1]
+    
         return sim
