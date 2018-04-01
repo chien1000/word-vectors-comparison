@@ -575,7 +575,11 @@ class HalWordVectorizer(BaseEstimator, VectorizerMixin, BaseWordVectorizer):
         if not ind:
             raise KeyError('term {} is not in the vocabulary'.format(key))
 
-        word_vec = self.cooccurence_matrix[ind, :].toarray().squeeze()
+        word_vec = self.cooccurence_matrix[ind, :]
+        if sp.issparse(word_vec):
+            word_vec = word_vec.toarray()
+        word_vec = word_vec.squeeze()
+
         return word_vec
 
 

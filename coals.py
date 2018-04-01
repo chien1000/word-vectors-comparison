@@ -5,10 +5,11 @@ from stop_words import ENGLISH_CLOSED_CLASS_WORDS
 import numbers
 import numpy as np 
 import scipy.sparse as sp
+from sklearn.decomposition import TruncatedSVD
 
 class CoalsWordVectorizer(HalWordVectorizer):
     """docstring for CoalsWordVectorizer"""
-    def __init__(self, window_size = 10, max_features=None,
+    def __init__(self, window_size = 10, max_features=None, svd_dim=None,
                  input='content', encoding='utf-8',
                  decode_error='strict', strip_accents=None,
                  lowercase=True, preprocessor=None, tokenizer=None,
@@ -17,6 +18,7 @@ class CoalsWordVectorizer(HalWordVectorizer):
 
         self.window_size = window_size
         self.max_features = max_features
+        self.svd_dim = svd_dim
         if max_features is not None:
             if (not isinstance(max_features, numbers.Integral) or
                     max_features <= 0):
@@ -182,6 +184,14 @@ class CoalsWordVectorizer(HalWordVectorizer):
 
         ##take square roots
         cooccurence_matrix = np.sqrt(cooccurence_matrix)
+
+        #apply svd
+        if self.svd_dim:
+            #TODO : remove less frequent rows to accelerate computing speed of svd
+            cooccurence_matrix = cooccurence_matrix.asfptype()
+            svd = TruncatedSVD(self.svd_dim, algorithm = 'arpack')
+            cooccurence_matrix = svd.fit_transform(cooccurence_matrix) # vocab_len * vector_dim
+            self.svd = svd
 
         self.context_vocabulary = context_vocabulary
         self.cooccurence_matrix = cooccurence_matrix
