@@ -5,6 +5,7 @@ from gensim.test.utils import datapath, get_tmpfile
 from gensim.models import KeyedVectors
 from gensim.scripts.glove2word2vec import glove2word2vec
 from base import BaseWordVectorizer
+from exceptions import *
 
 class GloveWordVectorizer(BaseWordVectorizer):
     """docstring for W2vWordVectorizor"""
@@ -16,6 +17,15 @@ class GloveWordVectorizer(BaseWordVectorizer):
         self.window_size = window_size
         self.min_count = min_count
         self.max_iter = max_iter 
+
+    def get_name(self):
+        return 'GLOVE'
+
+    def get_mid(self):
+        mid = '{}_d{}_window_{}_mincount_{}_iter_{}'.format(self.get_name(), self.vector_dim,
+                                self.window_size, self.min_count, self.max_iter)
+
+        return mid
 
     def fit_word_vectors(self, corpus_file):
         cwd = os.getcwd()
@@ -43,20 +53,32 @@ class GloveWordVectorizer(BaseWordVectorizer):
         glove_file = datapath(os.path.join(cwd, self.glove_dir, save_file) + '.txt')
         tmp_file = get_tmpfile(os.path.join(cwd, self.glove_dir, save_file) + '_w2v.txt')
         glove2word2vec(glove_file, tmp_file)
-        self.model = KeyedVectors.load_word2vec_format(tmp_file)
-       
+        self.word_vectors = KeyedVectors.load_word2vec_format(tmp_file)
+        self.vocabulary = self.word_vectors.vocab
+        self.ind2word = None #TODO
+
     def get_similarity(self, term1, term2):
+        if not hasattr(self, 'word_vectors'):
+            raise NotFittedError('Raw documented needed be fed first. Call fit_word_vectors(corpus_file)')
         #cosine sim
-        sim = self.model.similarity(term1, term2)
+        sim = self.word_vectors.similarity(term1, term2)
 
         return sim
 
+    def most_similar(self, positive=None, negative=None, topn=10, restrict_vocab=None, indexer=None):
+        if not hasattr(self, 'word_vectors'):
+            raise NotFittedError('Raw documented needed be fed first. Call fit_word_vectors(corpus_file)')
+
+        result = self.word_vectors.most_similar(positive, negative, topn, restrict_vocab, indexer)
+        
+        return result
+
     def __getitem__(self, key):
-        if not hasattr(self, 'model'):
+        if not hasattr(self, 'word_vectors'):
             raise NotFittedError('Raw documented needed be fed first to estimate word vectors before\
              acquiring specific word vector. Call fit_word_vectors(raw_documents)')
 
-        word_vec = self.model[key]
+        word_vec = self.word_vectors[key]
 
         return word_vec
 

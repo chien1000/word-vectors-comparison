@@ -1,5 +1,8 @@
-from gensim.models import Word2Vec
+from gensim.models.word2vec import Word2Vec, LineSentence
 from base import BaseWordVectorizer
+from exceptions import *
+
+MAX_WORDS_IN_BATCH = 10000
 
 class W2vWordVectorizer(BaseWordVectorizer):
     """docstring for W2vWordVectorizor"""
@@ -22,24 +25,47 @@ class W2vWordVectorizer(BaseWordVectorizer):
         self.negative = negative
         self.iter_num = iter_num 
 
-    def fit_word_vectors(self, raw_documents):
-        sg = 1 if self.algorithm == 'skip-gram' else 0
+    def get_name(self):
+        return self.algorithm.upper()
 
-        self.model = Word2Vec(raw_documents, size=self.vector_dim, sg=sg,
+    def get_mid(self):
+        mid = '{}_d{}_window_{}_mincount_{}_hs_{}_neg_{}_iter_{}'.format(self.get_name(), self.vector_dim,
+                                self.window_size, self.min_count, self.hs, self.negative, self.iter_num)
+        return mid
+
+    def fit_word_vectors(self, corpus_path):
+        sg = 1 if self.algorithm == 'skip-gram' else 0
+        sentences = LineSentence(corpus_path)
+        self.model = Word2Vec(sentences, size=self.vector_dim, sg=sg,
             window=self.window_size, min_count=self.min_count, sample=self.sample,
-            hs=self.hs, negative=self.negative, iter=self.iter_num)
+            hs=self.hs, negative=self.negative, iter=self.iter_num, batch_words=MAX_WORDS_IN_BATCH )
+        
+        self.word_vectors = self.model.wv #KeyedVectors
+        self.vocabulary = self.model.wv.vocab
+        self.ind2word = None #TODO
 
     def get_similarity(self, term1, term2):
-        sim = self.model.wv.similarity(term1, term2)
+        if not hasattr(self, 'word_vectors'):
+            raise NotFittedError('Raw documented needed be fed first. Call fit_word_vectors(raw_documents)')
+        #cosine sim
+        sim = self.word_vectors.similarity(term1, term2)
 
         return sim
 
+    def most_similar(self, positive=None, negative=None, topn=10, restrict_vocab=None, indexer=None):
+        if not hasattr(self, 'word_vectors'):
+            raise NotFittedError('Raw documented needed be fed first. Call fit_word_vectors(raw_documents)')
+
+        result = self.word_vectors.most_similar(positive, negative, topn, restrict_vocab, indexer)
+        
+        return result
+    
     def __getitem__(self, key):
-        if not hasattr(self, 'model'):
+        if not hasattr(self, 'word_vectors'):
             raise NotFittedError('Raw documented needed be fed first to estimate word vectors before\
              acquiring specific word vector. Call fit_word_vectors(raw_documents)')
 
-        word_vec = self.model.wv.__getitem__(key)
+        word_vec = self.word_vectors.__getitem__(key)
 
         return word_vec
 

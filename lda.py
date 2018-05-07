@@ -1,13 +1,15 @@
 import numpy as np
 from gensim.models.ldamodel import LdaModel
 from gensim import matutils
+from gensim.corpora.textcorpus import TextCorpus
 from sklearn.metrics.pairwise import cosine_similarity
 
 from six import string_types
 from six.moves import xrange
 
-from corpus import MyTextCorpus
+# from corpus import MyTextCorpus
 from base import BaseWordVectorizer
+from exceptions import *
 
 class LdaWordVectorizer(BaseWordVectorizer):
     """docstring for LdaWordVectorizer"""
@@ -21,8 +23,17 @@ class LdaWordVectorizer(BaseWordVectorizer):
         # self.id2word = id2word #https://github.com/RaRe-Technologies/gensim/blob/develop/gensim/corpora/dictionary.py
         self.random_state = random_state
 
+    def get_name(self):
+        return 'LDA'
+
+    def get_mid(self):
+        mid = '{}_d{}_alpha_{}_beta_{}_pass_{}'.format(self.get_name(), self.num_topics, 
+                                                                                        self.alpha, self.eta, self.passes)
+        return mid
+
     def fit_word_vectors(self, corpus_path):
-        corpus = MyTextCorpus(input=corpus_path)
+        # corpus = TextCorpus(corpus_path)
+        corpus = TextCorpus(corpus_path,  token_filters=[]) #character_filters=[lambda x:x],
         id2word = corpus.dictionary #https://github.com/RaRe-Technologies/gensim/blob/develop/gensim/corpora/dictionary.py
         
         self.model = LdaModel(corpus, num_topics=self.num_topics,
