@@ -2,16 +2,27 @@ import re
 import html
 import os
 import json
+from smart_open import smart_open
+import itertools
 
-class Corpus(object):
-    """docstring for Corpus"""
-    def __init__(self):
-        super(Corpus, self).__init__()
+class LineCorpus(object):
+    """ one line for one doc or one sentence """
+    def __init__(self, corpus_path, limit=None):
 
-class Reuters(Corpus):
+        self.corpus_path = corpus_path
+        self.limit = limit
+
+    def __iter__(self):
+        """Iterate through the lines in the source."""
+        with smart_open(self.corpus_path) as fin:
+            for line in itertools.islice(fin, self.limit):
+                yield line.decode('utf-8')
+
+
+class Reuters(object):
     """docstring for Reuters"""
     def __init__(self, data_dir):
-        super(Reuters, self).__init__()
+        # super(Reuters, self).__init__()
         self.data_dir = data_dir
 
     def read_all_data(self):
@@ -110,7 +121,7 @@ class MyTextCorpus(TextCorpus):
         lines = self.getstream()
         if self.metadata:
             for lineno, line in enumerate(lines):
-                yield ' '.join(self.preprocess_text(line)),  (lineno,)
+                yield ' '.join(self.preprocess_text(line)), (lineno,)
         else:
             for line in lines:
                 yield ' '.join(self.preprocess_text(line))
@@ -157,6 +168,7 @@ class MyTextCorpus(TextCorpus):
         setting_path = os.path.join('data/preprocessed', name+'_setting.txt')
 
         output = open(output_path, 'w')
+
         for tokens in self.get_texts():
             output.write(' '.join(tokens))
             output.write('\n')
@@ -170,4 +182,4 @@ if __name__ == '__main__':
 
     docs = MyTextCorpus(input = 'data/wikipedia/enwiki-20180101-p30304p88444-processed.txt')
     # docs = MyTextCorpus(input = 'data/preprocessed/reuters_docperline.txt')
-    docs.write_file('test')
+    docs.write_file('wiki_part')
