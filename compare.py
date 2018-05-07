@@ -7,6 +7,7 @@ from evaluations import evaluate_word_sims, evaluate_word_analogies
 import logging
 import os
 import json
+import traceback
 
 #logging
 
@@ -52,11 +53,19 @@ for m in models:
     logger.info(m.get_name())
 
 for m in models:
-    logger.info('# --- training {} ---\n '.format(m.get_name()))
-    m.load_model(output_dir)
-    if not m.model:
-        m.fit_word_vectors(corpus_path)
-        m.save_model(output_dir)
+    try:
+        logger.info('# --- loading {} ---\n '.format(m.get_name()))
+        m.load_model(output_dir)
+        if m.word_vectors is None:
+            logger.info('# --- training {} ---\n '.format(m.get_name()))
+            m.fit_word_vectors(corpus_path)
+            m.save_model(output_dir)
+
+    except Exception as e:
+        s = traceback.format_exc()
+        logger.error('error occurred when training {}'.format(m.get_name()))
+        logger.error(s)
+    
     # if m.get_name().lower() == 'skip-gram' or m.get_name().lower() == 'cbow':
     #     max_sentence_length = MAX_WORDS_IN_BATCH
     #     m.fit_word_vectors(docs.get_texts(max_sentence_length=max_sentence_length))
@@ -103,14 +112,24 @@ for dataset, dataset_name in zip(sim_datasets, sim_dataset_names):
     logger.warning('# ========= {} ========='.format(dataset_name))
     logger.warning('model,pearson, spearman, oov_ratio')
     for m in models:
-        pearson, spearman, oov_ratio = evaluate_word_sims(m, m.get_name(), dataset,  delimiter=',')
-        logger.warning('{},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), pearson, spearman, oov_ratio))
+        try:
+            pearson, spearman, oov_ratio = evaluate_word_sims(m, m.get_name(), dataset,  delimiter=',')
+            logger.warning('{},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), pearson[0], spearman[0], oov_ratio))
+
+        except Exception as e:
+            s = traceback.format_exc()
+            logger.error(s)
 
 google_anal = 'data/evaluations/google_analogies.txt'
 logger.warning('# ========= Google Analogies =========')
 logger.warning('model, analogies_score, oov_ratio')
 
 for m in models:
-    analogies_score, sections, oov_ratio = evaluate_word_analogies(m, m.get_name(), google_anal, restrict_vocab=300000, case_insensitive=True, dummy4unknown=False)
-    logger.warning('{},{:.4f},{:.4f}'.format(m.get_name(), analogies_score, oov_ratio))
+    try:
+        analogies_score, sections, oov_ratio = evaluate_word_analogies(m, m.get_name(), google_anal, restrict_vocab=300000, case_insensitive=True, dummy4unknown=False)
+        logger.warning('{},{:.4f},{:.4f}'.format(m.get_name(), analogies_score, oov_ratio))
 
+    except Exception as e:
+        s = traceback.format_exc()
+        logger.error(s)
+    
