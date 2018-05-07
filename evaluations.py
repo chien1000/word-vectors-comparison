@@ -5,7 +5,7 @@ import logging
 import os
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 def log_evaluate_word_sims(pearson, spearman, oov, name, pairs):
     # print('--------------------{}--------------------'.format(name))
@@ -217,6 +217,6 @@ def evaluate_word_analogies(model, name, analogies, restrict_vocab=300000, case_
     analogies_score = log_evaluate_word_analogies(name, total)
     sections.append(total)
     # Return the overall score and the full lists of correct and incorrect analogies
-    return analogies_score, sections
+    return analogies_score, sections, oov_ratio
 
 #TODO logger.info
