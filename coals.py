@@ -10,6 +10,7 @@ from exceptions import *
 import numbers
 import numpy as np 
 import scipy.sparse as sp
+from scipy.spatial.distance import cdist
 from sklearn.decomposition import TruncatedSVD
 from gensim import matutils
 
@@ -61,7 +62,7 @@ class CoalsWordVectorizer(HalWordVectorizer):
 
         window_size = self.window_size
         for doc in docs:
-            doc = [t for t in doc.split(' ') if t not in self.stop_words]
+            doc = [t for t in doc.split() if t not in self.stop_words]
             doc_length = len(doc)
 
             for i, feature in enumerate(doc):
@@ -274,12 +275,23 @@ class CoalsWordVectorizer(HalWordVectorizer):
             return indexer.most_similar(mean, topn)
 
         # limited = self.word_vectors_norm if restrict_vocab is None else self.word_vectors_norm[:restrict_vocab]
-        sims = np.apply_along_axis(lambda x: np.corrcoef(x,mean)[0,1], 1, self.word_vectors_norm)
+        
+        # sims = np.apply_along_axis(lambda x: np.corrcoef(x,mean)[0,1], 1, self.word_vectors_norm)
+        # NOTE! 
+        # there are some zero vectors with std = 0, causing errors(ZeroDivision) when calculating  corrcoef!
+        std = np.std(self.word_vectors_norm, axis=1)
+        nonzero_mask = std != 0
+        n_vectors = self.word_vectors_norm.shape[0]
+        sims = np.zeros(n_vectors)
+        vectors_with_std = self.word_vectors_norm[nonzero_mask,]
+        # sims_with_std = np.apply_along_axis(lambda x: np.corrcoef(x,mean)[0,1], 1,vectors_with_std)
+        sims_with_std = (1 - cdist(mean[None,:], vectors_with_std, metric='correlation')).squeeze() #faster!!
+        sims[nonzero_mask] = sims_with_std
 
         if not topn:
             return sims
 
         best = matutils.argsort(sims, topn=topn + len(all_words), reverse=True) 
         # ignore (don't return) words from the input
-        result = [(self.ind2word[ind], 1/ (1+float(sims[ind]))) for ind in best if ind not in all_words]
+        result = [(self.ind2word[ind], sims[ind]) for ind in best if ind not in all_words]
         return result[:topn]
