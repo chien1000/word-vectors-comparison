@@ -86,6 +86,16 @@ from gensim.corpora.textcorpus import TextCorpus
 from gensim.corpora.textcorpus import lower_to_unicode, strip_multiple_whitespaces, remove_stopwords, remove_short
 from gensim.utils import deaccent, simple_tokenize
 
+import subprocess
+
+def file_len(fname):
+    p = subprocess.Popen(['wc', '-l', fname], stdout=subprocess.PIPE, 
+                                              stderr=subprocess.PIPE)
+    result, err = p.communicate()
+    if p.returncode != 0:
+        raise IOError(err)
+    return int(result.strip().split()[0])
+
 def remove_numbers(tokens):
     return [token for token in tokens if not str.isdigit(token)]
         
@@ -171,7 +181,8 @@ class MyTextCorpus(TextCorpus):
         setting_path = os.path.join('data/preprocessed', name+'_setting.txt')
 
         # n_lines = self.__len__()
-        n_lines = len(self)
+        # n_lines = len(self)
+        n_lines = file_len(self.input)
         print('{} lines in thie file'.format(n_lines))
 
         if rand_sample is None:
@@ -205,7 +216,9 @@ class MyTextCorpus(TextCorpus):
 
 if __name__ == '__main__':
 
+    random.seed(2018)
     # docs = MyTextCorpus(input = 'data/wikipedia/enwiki-20180101-p30304p88444-processed.txt')
     # docs = MyTextCorpus(input = 'data/preprocessed/reuters_docperline.txt')
-    doc = MyTextCorpus(input = 'data/wikipedia/enwiki-20180120-processed.txt')
+    docs = MyTextCorpus(input = 'data/wikipedia/enwiki-20180120-processed.txt', dictionary={})
+    # docs.write_file('test', 0.1)
     docs.write_file('wiki_10percent', 0.1)
