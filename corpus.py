@@ -2,8 +2,10 @@ import re
 import html
 import os
 import json
+import numbers
 from smart_open import smart_open
 import itertools
+import random
 
 class LineCorpus(object):
     """ one line for one doc or one sentence """
@@ -110,7 +112,8 @@ class MyTextCorpus(TextCorpus):
 
         self.token_filters = token_filters
         if self.token_filters is None:
-            self.token_filters = [remove_short, remove_stopwords, remove_numbers]
+            # self.token_filters = [remove_short, remove_stopwords, remove_numbers]
+            self.token_filters = [remove_short, remove_stopwords]
         
         self.length = None
         self.dictionary = None
@@ -163,23 +166,46 @@ class MyTextCorpus(TextCorpus):
 
         return attr
 
-    def write_file(self, name):
+    def write_file(self, name, rand_sample=None):
         output_path = os.path.join('data/preprocessed', name+'.txt')
         setting_path = os.path.join('data/preprocessed', name+'_setting.txt')
 
+        # n_lines = self.__len__()
+        n_lines = len(self)
+        print('{} lines in thie file'.format(n_lines))
+
+        if rand_sample is None:
+            take = set(range(n_lines))
+        elif isinstance(rand_sample, numbers.Integral):
+            take = random.sample(range(n_lines), rand_sample)
+            take = set(take)
+        elif isinstance(rand_sample, float):
+            k = int(rand_sample * n_lines)
+            take = random.sample(range(n_lines), k)
+            take = set(take)
+        else:
+            raise(ValueError('rand_sample must be int or float'))
+
         output = open(output_path, 'w')
 
+        i = 0
         for tokens in self.get_texts():
-            output.write(' '.join(tokens))
-            output.write('\n')
+            if i in take:
+                output.write(' '.join(tokens))
+                output.write('\n')
+            i+=1
+            
         output.close()
 
         with open(setting_path, 'w') as out:
-            json.dump(self.__getstate__(), out)
+            info = self.__getstate__()
+            info['rand_sample'] = rand_sample 
+            json.dump(info, out)
 
 
 if __name__ == '__main__':
 
-    docs = MyTextCorpus(input = 'data/wikipedia/enwiki-20180101-p30304p88444-processed.txt')
+    # docs = MyTextCorpus(input = 'data/wikipedia/enwiki-20180101-p30304p88444-processed.txt')
     # docs = MyTextCorpus(input = 'data/preprocessed/reuters_docperline.txt')
-    docs.write_file('wiki_part')
+    doc = MyTextCorpus(input = 'data/wikipedia/enwiki-20180120-processed.txt')
+    docs.write_file('wiki_10percent', 0.1)
