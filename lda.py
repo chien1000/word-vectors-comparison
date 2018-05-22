@@ -27,7 +27,7 @@ class LdaWordVectorizer(BaseWordVectorizer):
         return 'LDA'
 
     def get_mid(self):
-        mid = '{}_d{}_alpha_{}_beta_{}_pass_{}'.format(self.get_name(), self.num_topics, 
+        mid = '{}_d{}_alpha_{:.4f}_beta_{}_pass_{}'.format(self.get_name(), self.num_topics, 
                                                                                         self.alpha, self.eta, self.passes)
         return mid
 
