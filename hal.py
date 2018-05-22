@@ -92,7 +92,7 @@ class HalWordVectorizer(BaseWordVectorizer):
         mid =  '{}_d{}_window_{}'.format(self.get_name(), self.max_features, self.window_size)
         return mid
 
-    def _count_cooccurence(self, docs, fixed_vocab):
+    def _count_cooccurence(self, docs, fixed_vocab, to_sort=False):
         """Create sparse feature matrix, and vocabulary where fixed_vocab=False
         """
         if fixed_vocab:
@@ -150,27 +150,28 @@ class HalWordVectorizer(BaseWordVectorizer):
 
             
         ###sort by alphebetic order
-        sorted_features = sorted(six.iteritems(vocabulary))
-        sorted_context = sorted(six.iteritems(context_vocabulary), key= lambda x: (x[0][1], x[0][0]))
+        if to_sort:
+            sorted_features = sorted(six.iteritems(vocabulary))
+            sorted_context = sorted(six.iteritems(context_vocabulary), key= lambda x: (x[0][1], x[0][0]))
 
-        map_index_v = np.empty(len(sorted_features), dtype=np.int32)
-        for new_val, (term, old_val) in enumerate(sorted_features):
-            vocabulary[term] = new_val
-            map_index_v[old_val] = new_val
+            map_index_v = np.empty(len(sorted_features), dtype=np.int32)
+            for new_val, (term, old_val) in enumerate(sorted_features):
+                vocabulary[term] = new_val
+                map_index_v[old_val] = new_val
 
-        map_index_c = np.empty(len(sorted_context), dtype=np.int32)
-        for new_val, (term, old_val) in enumerate(sorted_context):
-            context_vocabulary[term] = new_val
-            map_index_c[old_val] = new_val
-        
-        print(max(row))
+            map_index_c = np.empty(len(sorted_context), dtype=np.int32)
+            for new_val, (term, old_val) in enumerate(sorted_context):
+                context_vocabulary[term] = new_val
+                map_index_c[old_val] = new_val
+            
+            # print(max(row))
 
-        row = map_index_v.take(row, mode='clip')
-        col = map_index_c.take(col, mode='clip')
+            row = map_index_v.take(row, mode='clip')
+            col = map_index_c.take(col, mode='clip')
 
         values = np.frombuffer(values, dtype=np.intc)
-        print(len(vocabulary))
-        print(row.max())
+        # print(len(vocabulary))
+        # print(row.max())
         cooccurence_matrix = sp.coo_matrix((values, (row, col)), shape=(len(vocabulary), 
                                                                          len(context_vocabulary))
                                            ,dtype=self.dtype)
