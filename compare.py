@@ -42,15 +42,32 @@ if run_config['spec']:
 config_save_path = os.path.join(output_dir, 'config.txt')
 tmp = run_config.copy()
 tmp['models']  = [m.get_mid() for m in tmp['models']] #for json dump
-with open(config_save_path, 'w') as fout:
+with open(config_save_path, 'a') as fout:
     json.dump(tmp, fout, indent=0)
 
+
+#outputs
+corpus_name = os.path.splitext(os.path.basename(corpus_path))[0]
+output_file = '{}_dim_{}.txt'.format(corpus_name, run_config['vector_dim'])
+output_path = os.path.join(output_dir, output_file)
+if os.path.exists(output_path):
+    import time
+    ts = time.time()
+    output_path = '{}_{}.txt'.format(output_path.split('.')[0], ts )
+logger.info('#========= output file: {} ========='.format(output_path))
+fh = logging.FileHandler(output_path)
+fh.setLevel(logging.DEBUG) #   >info > debug
+
+log_formatter = logging.Formatter('# %(asctime)s  \n%(message)s')
+fh.setFormatter(log_formatter)
+
+logger.addHandler(fh)
 
 #model
 models = run_config['models']
 logger.info('#========= Evaluate models: =========')
 for m in models:
-    logger.info(m.get_name())
+    logger.info('# ' + m.get_name())
 
 for m in models:
     try:
@@ -63,7 +80,7 @@ for m in models:
 
     except Exception as e:
         s = traceback.format_exc()
-        logger.error('error occurred when training {}'.format(m.get_name()))
+        logger.error('# error occurred when training {}'.format(m.get_name()))
         logger.error(s)
     
     # if m.get_name().lower() == 'skip-gram' or m.get_name().lower() == 'cbow':
@@ -88,18 +105,7 @@ for m in models:
 # glove_wv.fit_word_vectors(corpus_path)
 
 
-#outputs
-corpus_name = os.path.splitext(os.path.basename(corpus_path))[0]
-output_file = '{}_dim_{}.txt'.format(corpus_name, run_config['vector_dim'])
-output_path = os.path.join(output_dir, output_file)
-if os.path.exists(output_path):
-    import time
-    ts = time.time()
-    output_path = '{}_{}.txt'.format(output_path.split('.')[0], ts )
-logger.info('#========= output file: {} ========='.format(output_path))
-fh = logging.FileHandler(output_path)
-fh.setLevel(logging.WARNING) #   >info > debug
-logger.addHandler(fh)
+
 
 
 
