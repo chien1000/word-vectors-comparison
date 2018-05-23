@@ -525,7 +525,7 @@ binarize_dir  = "./data/binarize/"
 emb_dir       = "./data/emb-manaal"
 brown_dir     = "./data/brown/"
 kmcluster_dir = "./data/kmcluster/"
-proto_dir     = "./data/proto/code/"
+proto_dir     = "./data/proto/"
 
 import os.path
 if __name__ == '__main__':
@@ -554,7 +554,8 @@ if __name__ == '__main__':
                 os.path.join(kmcluster_dir, "ccompound.txt"))
     if 'proto' in W:
         load_prototypes(
-                os.path.join(proto_dir, "k40.n1.bio.pmi.protosim"))
+                os.path.join(proto_dir, "k40.n1.pmi.protosim"))
+                # os.path.join(proto_dir, "k40.n1.bio.pmi.protosim"))
     if 'bi' in W:
         load_binarized_emb(
                 os.path.join(binarize_dir, "w2v.bi-mean.txt"))

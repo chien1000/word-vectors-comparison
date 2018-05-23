@@ -6,11 +6,11 @@ if [ $# -ne 1 ]; then
 fi
 
 root_dir=data/ner
-inst_dir=$root_dir/instances/
+inst_dir=$root_dir/instances
 if [ ! -d $inst_dir ]; then
     mkdir $inst_dir
 fi
-model_dir=$root_dir/models/$1/
+model_dir=$root_dir/models/$1
 if [ ! -d $model_dir ]; then
     mkdir $model_dir
 fi
@@ -40,6 +40,8 @@ elif [ "$1" == "ce-proto" ]; then # combination
     cost=1.0
 elif [ "$1" == "bc-ce-proto" ]; then
     cost=1.9
+elif [ "$1" == "baseline" ]; then
+    cost=1
 else
     echo "Usage: ./train.sh [de|bi|ce|proto]"
     exit 1
@@ -55,6 +57,5 @@ log_dir=$root_dir/logs/
 if [ ! -d $log_dir ]; then
     mkdir $log_dir
 fi
-log_file=$log_dir/$1.log"
-crfsuite learn -m $model -p feature.possible_states=1 -p feature.possible_transitions=1 -a l2sgd -p c2=$cost -e2 $train_corpora $dev_corpora > $log_file 2>&1
-
+log_file=$log_dir/$1.log
+~/local/bin/crfsuite learn -m $model -p feature.possible_states=1 -p feature.possible_transitions=1 -a l2sgd -p c2=$cost -e2 $train_corpora $dev_corpora > $log_file 2>&1
