@@ -1,5 +1,6 @@
 *.bin
 *.txt
+ner_embedding_features/data/ner/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
