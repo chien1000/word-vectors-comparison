@@ -4,6 +4,14 @@ if [ $# -ne 1 ]; then
     echo "Usage: ./train.sh [de|bi|ce|proto|baseline]"
     exit 1
 fi
+# while true; do
+#   case "$1" in
+#     --features ) FEATURES="$2"; shift; shift ;;
+#     --wv_path ) WV_PATH="$2"; shift; shift ;;
+#     -- ) shift; break ;;
+#     * ) break ;;
+#   esac
+# done
 
 root_dir=data/ner
 inst_dir=$root_dir/instances
@@ -20,9 +28,9 @@ dev_corpora=$inst_dir/dev.$1.inst
 test_corpora=$inst_dir/test.$1.inst
 
 echo "collect training instances"
-python2 src/enner.py $1 < $root_dir/eng.train > $train_corpora
-python2 src/enner.py $1 < $root_dir/eng.dev   > $dev_corpora
-python2 src/enner.py $1 < $root_dir/eng.test  > $test_corpora
+python src/enner.py $1 < $root_dir/eng.train > $train_corpora
+python src/enner.py $1 < $root_dir/eng.dev   > $dev_corpora
+python src/enner.py $1 < $root_dir/eng.test  > $test_corpora
 
 # for each setting, we have tuned the cost (l2 coef) to an optimal value
 #   on the development dataset

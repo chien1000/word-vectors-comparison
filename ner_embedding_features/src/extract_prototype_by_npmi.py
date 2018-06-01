@@ -17,6 +17,7 @@ from convert_bio import Corpus
 import operator
 import sys
 import math
+from collections import defaultdict
 
 debug=False
 
@@ -29,7 +30,7 @@ def load_emb_vcb(path):
 
 if __name__ == '__main__':
 
-    vocab = load_emb_vcb("embed.vcb")
+    # vocab = load_emb_vcb("embed.vcb")
 
     ne_corpus = Corpus(sys.argv[1])
     k = int(sys.argv[2]) # k prototypes
@@ -38,9 +39,9 @@ if __name__ == '__main__':
     normalized_pmi_1 = {}
     normalized_pmi_2 = {}
 
-    tag_count = {}
-    word_count = {}
-    tag_word_count = {} # {tag: {word : count(tag, word)}}
+    tag_count = defaultdict(int)
+    word_count = defaultdict(int)
+    tag_word_count = defaultdict(dict) # {tag: {word : count(tag, word)}}
 
     N = 0
     for sent in ne_corpus.get_sent():
@@ -57,10 +58,10 @@ if __name__ == '__main__':
             ### merge all NE types to one NE
             #if tag != "O": tag = "NE"
 
-            tag_count[tag] = tag_count.setdefault(tag, 0) + 1
-            word_count[word] = word_count.setdefault(word, 0) + 1
-            tag_word_count[tag] = tag_word_count.setdefault(tag, {})
-            if word.lower() not in vocab: continue
+            tag_count[tag] = tag_count[tag] + 1
+            word_count[word] = word_count[word] + 1
+            
+            # if word.lower() not in vocab: continue
             tag_word_count[tag][word] = tag_word_count[tag].setdefault(word, 0) + 1
 
     for tag,tw_count in tag_word_count.items():
@@ -79,7 +80,7 @@ if __name__ == '__main__':
 
     """ all NE types include BIO
     """
-    fp_result_normalized_pmi_1 = open("k%s.n1.bio.pmi" % (k), "w")
+    fp_result_normalized_pmi_1 = open("k%s.n1.bio.pmi_" % (k), "w")
 
     """ NE / non-NE
     """

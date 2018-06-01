@@ -5,6 +5,15 @@ Copyright 2010,2011 Naoaki Okazaki.
 
 import optparse
 import sys
+import numpy as np
+
+FLOAT_DTYPES = (float, np.float64, np.float32, np.float16)
+def check_float(v):
+    is_float = False
+    for tp in FLOAT_DTYPES:
+        if isinstance(v, tp):
+            is_float=True
+    return is_float
 
 def apply_templates(X, templates):
     """
@@ -43,13 +52,14 @@ def apply_templates(X, templates):
                         continue
                 values.append(X[p][field])
             if values: # empty features
-                if isinstance(values[0], float):
+                if check_float(values[0]) or isinstance(values[0], int):
                     X[t]['F'].append([name, values[0]])
                 elif name.startswith("proto["):
                     for ii in range(len(values)):
                         X[t]['F'].append('%s=%s' % (name, values[ii]))
                 else:
                     X[t]['F'].append('%s=%s' % (name, '|'.join(values)))
+                    
 
 def readiter(fi, names, sep=' '):
     """
@@ -72,7 +82,7 @@ def readiter(fi, names, sep=' '):
     """
     X = []
     for line in fi:
-        line = line.strip('\n').decode("utf8")
+        line = line.strip('\n')
         if not line:
             yield X
             X = []
@@ -115,10 +125,10 @@ def output_features(fo, X, field=''):
             fo.write('%s' % X[t][field])
         for a in X[t]['F']:
             # print type(a)
-            if isinstance(a, str) or isinstance(a, unicode):
-                fo.write('\t%s' % escape(a).encode("utf8"))
+            if isinstance(a, str):
+                fo.write('\t%s' % escape(a))
             else:
-                fo.write('\t%s:%f' % (escape(a[0]), a[1]))
+                fo.write('\t%s:%.6f' % (escape(a[0]), a[1]))
         fo.write('\n')
     fo.write('\n')
 
@@ -144,40 +154,46 @@ def to_crfsuite(X):
         xseq.append(item)
     return xseq
 
-def main(feature_extractor, fields='w pos y', sep=' '):
-    fi = sys.stdin
-    fo = sys.stdout
+def main(feature_extractor, templates, fields='w pos y', sep=' ', 
+    fi=sys.stdin, fo=sys.stdout, model=None):
+    # fi = sys.stdin
+    # fo = sys.stdout
 
     # Parse the command-line arguments.
-    parser = optparse.OptionParser(usage="""usage: %prog [options]
-This utility reads a data set from STDIN, and outputs attributes to STDOUT.
-Each line of a data set must consist of field values separated by SEPARATOR
-characters. The names and order of field values can be specified by -f option.
-The separator character can be specified with -s option. Instead of outputting
-attributes, this utility tags the input data when a model file is specified by
--t option (CRFsuite Python module must be installed)."""
-        )
-    parser.add_option(
-        '-t', dest='model',
-        help='tag the input using the model (requires "crfsuite" module)'
-        )
-    parser.add_option(
-        '-f', dest='fields', default=fields,
-        help='specify field names of input data [default: "%default"]'
-        )
-    parser.add_option(
-        '-s', dest='separator', default=sep,
-        help='specify the separator of columns of input data [default: "%default"]'
-        )
-    (options, args) = parser.parse_args()
+#     parser = optparse.OptionParser(usage="""usage: %prog [options]
+# This utility reads a data set from STDIN, and outputs attributes to STDOUT.
+# Each line of a data set must consist of field values separated by SEPARATOR
+# characters. The names and order of field values can be specified by -f option.
+# The separator character can be specified with -s option. Instead of outputting
+# attributes, this utility tags the input data when a model file is specified by
+# -t option (CRFsuite Python module must be installed)."""
+#         )
+#     parser.add_option(
+#         '-t', dest='model',
+#         help='tag the input using the model (requires "crfsuite" module)'
+#         )
+#     parser.add_option(
+#         '-f', dest='fields', default=fields,
+#         help='specify field names of input data [default: "%default"]'
+#         )
+#     parser.add_option(
+#         '-s', dest='separator', default=sep,
+#         help='specify the separator of columns of input data [default: "%default"]'
+#         )
+#     (options, args) = parser.parse_args()
 
-    # The fields of input: ('w', 'pos', 'y) by default.
-    F = options.fields.split(' ')
+#     # The fields of input: ('w', 'pos', 'y) by default.
+#     F = options.fields.split(' ')
+#     separator = options.separator
+#     model = options.model
 
-    if not options.model:
+    F = fields.split()
+    separator = sep
+
+    if not model:
         # The generator function readiter() reads a sequence from a 
-        for X in readiter(fi, F, options.separator):
-            feature_extractor(X)
+        for X in readiter(fi, F, separator):
+            feature_extractor(X, templates)
             output_features(fo, X, 'y')
 
     else:
@@ -187,7 +203,7 @@ attributes, this utility tags the input data when a model file is specified by
         tagger.open(options.model)
 
         # For each sequence from STDIN.
-        for X in readiter(fi, F, options.separator):
+        for X in readiter(fi, F, separator):
             # Obtain features.
             feature_extractor(X)
             xseq = to_crfsuite(X)

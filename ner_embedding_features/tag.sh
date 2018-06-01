@@ -36,3 +36,6 @@ sed -i 's/^\t//g' $eval_dir/test.$1.eval
 echo "----Performance(Test)----"
 perl src/conlleval.pl -d "\t" < $eval_dir/test.$1.eval
 
+~/local/bin/crfsuite tag -qt -m $model  $test_corpora
+#which one is right???
+

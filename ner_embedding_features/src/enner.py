@@ -5,20 +5,14 @@ A feature extractor for named eneity recognition (NER).
 Modified from the original implementation of Naoaki Okazaki (2010, 2011).
 """
 
-# Separator of field values.
-separator = ' '
 
-# Field names of the input data.
-# fields = 'y w pos chk'
-fields = 'w pos chk y'
-
-de_dimension = 300
-se_dimension = 3000
-# se_dimension = 9
-
-import crfutils
+from . import crfutils
 from numpy import zeros
 import math
+import os.path
+from os.path import abspath, dirname
+import sys
+from inspect import getsourcefile
 
 ### if the word contains an hyphen
 def get_hyp(token):
@@ -204,6 +198,206 @@ def bc_prefix(code, p):
     else:
         return code[:p]
 
+### load cluster-like features
+### including brown cluster, and embedding cluster.
+def load_cluster_brown(path, sep='\t'):
+    for l in open(path, "r"):
+        l = l.strip().split(sep)
+        cluster_brown[l[1]] = l[0]
+
+def load_cluster_emb(path, sep='\t'):
+    for l in open(path, "r"):
+        l = l.strip().split(sep)
+        cluster_emb[l[1]] = l[0]
+
+def load_compound_cluster_emb(path, sep='\t'):
+    for l in open(path, "r"):
+        l = l.strip().split(sep)
+        cluster_emb[l[0]] = l[1:]
+
+def load_prototypes(path, sep="\t"):
+    for l in open(path, "r"):
+        l = l.strip().split(sep)
+        prototypes[l[0]] = l[1:]
+
+### load embedding features
+### including dense embedding and sparse embedding.
+def load_dense_emb(path, sep=' '):
+    # global de_dimension
+    for i,l in enumerate(open(path, "r")):
+        # print >> sys.stderr, "\r%d" % (i),
+        l = l.strip().split(sep)
+        embs = list(map(float, l[1:]))
+        # if i == 0:
+        #     de_dimension = len(embs)
+        embs = scale(embs, metric="normalize")
+        dense_emb[l[0]] = embs
+    # print >> sys.stderr
+
+def load_sparse_emb(path, sep=' '):
+    for i,l in enumerate(open(path, "r")):
+        print >> sys.stderr, "\r%d" % (i),
+        l = l.strip().split(sep)
+        embs = list(map(float, l[1:]))
+        sparse_emb[l[0]] = embs
+    print >> sys.stderr
+
+def load_binarized_emb(path, sep=' '):
+    for l in open(path, "r"):
+        l = l.strip().split(sep)
+        embs = l[1:]
+        binarized_emb[l[0]] = embs
+
+def scale(vec, metric="minmax"):
+    if metric == "minmax":
+        __max = max(vec)
+        __min = min(vec)
+        scaled_vec = [(e - __min)/(__max - __min) for e in vec]
+    elif metric == "normalize":
+        __norm = math.sqrt(sum([e**2 for e in vec]))
+        scaled_vec = [(e/__norm + 1)/2 for e in vec]
+    return scaled_vec
+
+def append_wfeatures(emb_type):
+    if emb_type == "bc":
+        W.append('brown')
+        W.append('brown-p2')
+        W.append('brown-p4')
+        W.append('brown-p6')
+        W.append('brown-p8')
+        W.append('brown-p10')
+        W.append('brown-p12')
+        W.append('brown-p14')
+        W.append('brown-p16')
+    if emb_type == "de":
+        W.append('de')
+    if emb_type == "se":
+        W.append('se')
+    if emb_type == "ce":
+        W.append('ce500')
+        W.append('ce1000')
+        W.append('ce2000')
+        W.append('ce1500')
+        W.append('ce3000')
+    if emb_type == "proto":
+        W.append('proto')
+        # W.append('proto1')
+    if emb_type == "bi": # bi-mean
+        W.append('bi')
+    if emb_type == "bi-ce":
+        W.append('bi')
+        W.append('ce500')
+        W.append('ce1000')
+        W.append('ce2000')
+        W.append('ce1500')
+        W.append('ce3000')
+    if emb_type == "bi-proto":
+        W.append('bi')
+        W.append('proto')
+    if emb_type == "ce-proto":
+        W.append('ce500')
+        W.append('ce1000')
+        W.append('ce2000')
+        W.append('ce1500')
+        W.append('ce3000')
+        W.append('proto')
+    if emb_type == "bc-proto":
+        W.append('brown')
+        W.append('brown-p2')
+        W.append('brown-p4')
+        W.append('brown-p6')
+        W.append('brown-p8')
+        W.append('brown-p10')
+        W.append('brown-p12')
+        W.append('brown-p14')
+        W.append('brown-p16')
+        W.append('proto')
+    if emb_type == "bc-ce":
+        W.append('brown')
+        W.append('brown-p2')
+        W.append('brown-p4')
+        W.append('brown-p6')
+        W.append('brown-p8')
+        W.append('brown-p10')
+        W.append('brown-p12')
+        W.append('brown-p14')
+        W.append('brown-p16')
+        W.append('ce500')
+        W.append('ce1000')
+        W.append('ce2000')
+        W.append('ce1500')
+        W.append('ce3000')
+    if emb_type == "bc-ce-proto":
+        W.append('brown')
+        W.append('brown-p2')
+        W.append('brown-p4')
+        W.append('brown-p6')
+        W.append('brown-p8')
+        W.append('brown-p10')
+        W.append('brown-p12')
+        W.append('brown-p14')
+        W.append('brown-p16')
+        W.append('proto')
+        W.append('ce500')
+        W.append('ce1000')
+        W.append('ce2000')
+        W.append('ce1500')
+        W.append('ce3000')
+    if emb_type == "bi-ce-proto":
+        W.append('bi')
+        W.append('ce500')
+        W.append('ce1000')
+        W.append('ce2000')
+        W.append('ce1500')
+        W.append('ce3000')
+        W.append('proto')
+    if emb_type == "de-ce-proto":
+        W.append('de')
+        W.append('ce500')
+        W.append('ce1000')
+        W.append('ce2000')
+        W.append('ce1500')
+        W.append('ce3000')
+        W.append('proto')
+
+def get_templates():
+    templates = []
+    for name in U:
+        templates += [((name, i),) for i in range(-2, 3)]
+    for name in B:
+        templates += [((name, i), (name, i+1)) for i in range(-2, 2)]
+    # for name in O:
+    #     templates += [((name, 0),)]
+    for name in W:
+        if name == "brown":
+            templates += [((name, i),) for i in range(-2, 3)]
+            templates += [((name, i), (name, i+1)) for i in range(-1,1)]
+            templates += [((name, -1), (name, 1))]
+        elif name.startswith("brown"):
+            templates += [((name, i),) for i in range(-2, 3)]
+        elif name.startswith("ce"):
+            templates += [((name, i),) for i in range(-2, 3)]
+            templates += [((name, i), (name, i+1)) for i in range(-1,1)]
+            templates += [((name, -1), (name, 1))]
+        elif name == "proto":
+            templates += [((name, i),) for i in range(-2, 3)]
+            # templates += [((name, i), (name, i+1)) for i in range(-1,1)]
+            # templates += [((name, -1), (name, 1))]
+        elif name == "de":
+            for i in range(de_dimension):
+                key = "%s%d" % (name, i)
+                templates += [((key, i),) for i in range(-2, 3)]
+        elif name == "se":
+            for i in range(se_dimension):
+                key = "%s%d" % (name, i)
+                templates += [((key, i),) for i in range(-2, 3)]
+        elif name == "bi":
+            for i in range(de_dimension):
+                key = "%s%d" % (name, i)
+                templates += [((key, i),) for i in range(-2, 3)]
+
+    return templates
+
 def observation(v, defval=''):
     # Lowercased token.
     v['wl'] = v['w'].lower()
@@ -241,14 +435,14 @@ def observation(v, defval=''):
                 v['brown-p%d' % prefix] = defval
     if 'de' in W:
         # print >> sys.stderr, "append dense emb"
-        emb = dense_emb[v['wl']] if v['wl'] in dense_emb else map(int, zeros(de_dimension))
-        for i in xrange(de_dimension):
+        emb = dense_emb[v['wl']] if v['wl'] in dense_emb else list(map(int, zeros(de_dimension)))
+        for i in range(de_dimension):
             name = "de%d" % (i)
             v[name] = emb[i]
     if 'se' in W:
         # print >> sys.stderr, "append dense emb"
-        emb = sparse_emb[v['wl']] if v['wl'] in sparse_emb else map(int, zeros(se_dimension))
-        for i in xrange(se_dimension):
+        emb = sparse_emb[v['wl']] if v['wl'] in sparse_emb else list(map(int, zeros(se_dimension)))
+        for i in range(se_dimension):
             name = "se%d" % (i)
             v[name] = emb[i]
     if 'ce500' in W: ## ce1000, ce2000 should be in
@@ -271,7 +465,7 @@ def observation(v, defval=''):
             v['proto'] = []
     if 'bi' in W:
         biemb = binarized_emb[v['wl']] if v['wl'] in binarized_emb else ['0']*de_dimension
-        for i in xrange(de_dimension):
+        for i in range(de_dimension):
             name = "bi%d" % (i)
             v[name] = biemb[i]
 
@@ -283,232 +477,14 @@ def disjunctive(X, t, field, begin, end):
             continue
         X[t]['F'].append('%s=%s' % (name, X[p][field]))
 
-U = [
-    'w', 'pos', 'chk', 'type',
-    'p1', 'p2', 'p3', 'p4',
-    's1', 's2', 's3', 's4',
-    ]
-W = [] #'de', 'ce', 'proto', 'bi'
-B = ['w', 'pos', 'chk']
-# O = ['hyp', 'cap']
-
-import sys
-if len(sys.argv) != 2:
-    print >> sys.stderr, "Usage: python %s [emb_type]" % (sys.argv[0])
-    print >> sys.stderr, "emb_type = de|ce|bi|proto|bc|none"
-    sys.exit(1)
-
-emb_type = sys.argv[1]
-if emb_type == "bc":
-    W.append('brown')
-    W.append('brown-p2')
-    W.append('brown-p4')
-    W.append('brown-p6')
-    W.append('brown-p8')
-    W.append('brown-p10')
-    W.append('brown-p12')
-    W.append('brown-p14')
-    W.append('brown-p16')
-if emb_type == "de":
-    W.append('de')
-if emb_type == "se":
-    W.append('se')
-if emb_type == "ce":
-    W.append('ce500')
-    W.append('ce1000')
-    W.append('ce2000')
-    W.append('ce1500')
-    W.append('ce3000')
-if emb_type == "proto":
-    W.append('proto')
-    # W.append('proto1')
-if emb_type == "bi": # bi-mean
-    W.append('bi')
-if emb_type == "bi-ce":
-    W.append('bi')
-    W.append('ce500')
-    W.append('ce1000')
-    W.append('ce2000')
-    W.append('ce1500')
-    W.append('ce3000')
-if emb_type == "bi-proto":
-    W.append('bi')
-    W.append('proto')
-if emb_type == "ce-proto":
-    W.append('ce500')
-    W.append('ce1000')
-    W.append('ce2000')
-    W.append('ce1500')
-    W.append('ce3000')
-    W.append('proto')
-if emb_type == "bc-proto":
-    W.append('brown')
-    W.append('brown-p2')
-    W.append('brown-p4')
-    W.append('brown-p6')
-    W.append('brown-p8')
-    W.append('brown-p10')
-    W.append('brown-p12')
-    W.append('brown-p14')
-    W.append('brown-p16')
-    W.append('proto')
-if emb_type == "bc-ce":
-    W.append('brown')
-    W.append('brown-p2')
-    W.append('brown-p4')
-    W.append('brown-p6')
-    W.append('brown-p8')
-    W.append('brown-p10')
-    W.append('brown-p12')
-    W.append('brown-p14')
-    W.append('brown-p16')
-    W.append('ce500')
-    W.append('ce1000')
-    W.append('ce2000')
-    W.append('ce1500')
-    W.append('ce3000')
-if emb_type == "bc-ce-proto":
-    W.append('brown')
-    W.append('brown-p2')
-    W.append('brown-p4')
-    W.append('brown-p6')
-    W.append('brown-p8')
-    W.append('brown-p10')
-    W.append('brown-p12')
-    W.append('brown-p14')
-    W.append('brown-p16')
-    W.append('proto')
-    W.append('ce500')
-    W.append('ce1000')
-    W.append('ce2000')
-    W.append('ce1500')
-    W.append('ce3000')
-if emb_type == "bi-ce-proto":
-    W.append('bi')
-    W.append('ce500')
-    W.append('ce1000')
-    W.append('ce2000')
-    W.append('ce1500')
-    W.append('ce3000')
-    W.append('proto')
-if emb_type == "de-ce-proto":
-    W.append('de')
-    W.append('ce500')
-    W.append('ce1000')
-    W.append('ce2000')
-    W.append('ce1500')
-    W.append('ce3000')
-    W.append('proto')
-
-templates = []
-for name in U:
-    templates += [((name, i),) for i in range(-2, 3)]
-for name in B:
-    templates += [((name, i), (name, i+1)) for i in range(-2, 2)]
-# for name in O:
-#     templates += [((name, 0),)]
-for name in W:
-    if name == "brown":
-        templates += [((name, i),) for i in range(-2, 3)]
-        templates += [((name, i), (name, i+1)) for i in range(-1,1)]
-        templates += [((name, -1), (name, 1))]
-    elif name.startswith("brown"):
-        templates += [((name, i),) for i in range(-2, 3)]
-    elif name.startswith("ce"):
-        templates += [((name, i),) for i in range(-2, 3)]
-        templates += [((name, i), (name, i+1)) for i in range(-1,1)]
-        templates += [((name, -1), (name, 1))]
-    elif name == "proto":
-        templates += [((name, i),) for i in range(-2, 3)]
-        # templates += [((name, i), (name, i+1)) for i in range(-1,1)]
-        # templates += [((name, -1), (name, 1))]
-    elif name == "de":
-        for i in xrange(de_dimension):
-            key = "%s%d" % (name, i)
-            templates += [((key, i),) for i in range(-2, 3)]
-    elif name == "se":
-        for i in xrange(se_dimension):
-            key = "%s%d" % (name, i)
-            templates += [((key, i),) for i in range(-2, 3)]
-    elif name == "bi":
-        for i in xrange(de_dimension):
-            key = "%s%d" % (name, i)
-            templates += [((key, i),) for i in range(-2, 3)]
-
-cluster_brown = {}
-cluster_emb = {}
-dense_emb = {}
-sparse_emb = {}
-prototypes = {}
-binarized_emb = {}
-
-### load cluster-like features
-### including brown cluster, and embedding cluster.
-def load_cluster_brown(path, sep='\t'):
-    for l in open(path, "r"):
-        l = l.strip().split(sep)
-        cluster_brown[l[1]] = l[0]
-
-def load_cluster_emb(path, sep='\t'):
-    for l in open(path, "r"):
-        l = l.strip().split(sep)
-        cluster_emb[l[1]] = l[0]
-
-def load_compound_cluster_emb(path, sep='\t'):
-    for l in open(path, "r"):
-        l = l.strip().split(sep)
-        cluster_emb[l[0]] = l[1:]
-
-def load_prototypes(path, sep="\t"):
-    for l in open(path, "r"):
-        l = l.strip().split(sep)
-        prototypes[l[0]] = l[1:]
-
-### load embedding features
-### including dense embedding and sparse embedding.
-def load_dense_emb(path, sep=' '):
-    # global de_dimension
-    for i,l in enumerate(open(path, "r")):
-        # print >> sys.stderr, "\r%d" % (i),
-        l = l.strip().split(sep)
-        embs = map(float, l[1:])
-        # if i == 0:
-        #     de_dimension = len(embs)
-        embs = scale(embs, metric="normalize")
-        dense_emb[l[0]] = embs
-    # print >> sys.stderr
-
-def load_sparse_emb(path, sep=' '):
-    for i,l in enumerate(open(path, "r")):
-        print >> sys.stderr, "\r%d" % (i),
-        l = l.strip().split(sep)
-        embs = map(float, l[1:])
-        sparse_emb[l[0]] = embs
-    print >> sys.stderr
-
-def load_binarized_emb(path, sep=' '):
-    for l in open(path, "r"):
-        l = l.strip().split(sep)
-        embs = l[1:]
-        binarized_emb[l[0]] = embs
-
-def scale(vec, metric="minmax"):
-    if metric == "minmax":
-        __max = max(vec)
-        __min = min(vec)
-        scaled_vec = [(e - __min)/(__max - __min) for e in vec]
-    elif metric == "normalize":
-        __norm = math.sqrt(sum([e**2 for e in vec]))
-        scaled_vec = [(e/__norm + 1)/2 for e in vec]
-    return scaled_vec
-
-def feature_extractor(X):
+def feature_extractor(X, templates):
     # Append observations.
     for x in X:
         observation(x)
+    # import pdb; pdb.set_trace()
 
     # Apply the feature templates.
-    crfutils.apply_templates(X, templates)
+    crfutils.apply_templates(X, templates) #extract attributes to X[ind]['F']
 
     # Append disjunctive features.
     for t in range(len(X)):
@@ -520,23 +496,90 @@ def feature_extractor(X):
         X[0]['F'].append('__BOS__')
         X[-1]['F'].append('__EOS__')
 
-binarize_dir  = "./data/binarize/"
-#emb_dir       = "./data/emb-wiki/"
-emb_dir       = "./data/emb-manaal"
-brown_dir     = "./data/brown/"
-kmcluster_dir = "./data/kmcluster/"
-proto_dir     = "./data/proto/"
 
-import os.path
+# Separator of field values.
+separator = ' '
+
+# Field names of the input data.
+# fields = 'y w pos chk'
+fields = 'w pos chk y'
+
+de_dimension = 300
+se_dimension = 3000
+# se_dimension = 9
+
+U = [
+    'w', 'pos', 'chk', 'type',
+    'p1', 'p2', 'p3', 'p4',
+    's1', 's2', 's3', 's4',
+    ]
+W = [] #'de', 'ce', 'proto', 'bi'
+B = ['w', 'pos', 'chk']
+# O = ['hyp', 'cap']
+
+src_dir = dirname(abspath(getsourcefile(lambda :0)))
+ner_repo_dir = dirname(src_dir)
+binarize_dir  = os.path.join(ner_repo_dir,"data/binarize/")
+emb_dir       = os.path.join(ner_repo_dir,"data/emb-wiki/")
+# emb_dir       = "./data/emb-manaal"
+brown_dir     = os.path.join(ner_repo_dir,"data/brown/")
+kmcluster_dir = os.path.join(ner_repo_dir,"data/kmcluster/")
+proto_dir     = os.path.join(ner_repo_dir,"data/proto/")
+
+cluster_brown = {}
+cluster_emb = {}
+dense_emb = {}
+sparse_emb = {}
+prototypes = {}
+binarized_emb = {}
+
+def generate_crfsuite_features(data_in, output, emb_type, wv=None):
+    '''
+    #data_in: ner training data or testing data to generate features/attributes from
+    #output: file to store generated features
+    #embed_type: none/de/proto
+    #wv: WordVectorizer
+    '''
+    
+    if wv is not None:
+        global de_dimension
+        global dense_emb
+        de_dimension = wv.get_dim()
+        dense_emb = wv
+
+    append_wfeatures(emb_type) # W.append('de')
+    templates = get_templates()
+
+    if 'proto' in W:
+        load_prototypes(
+                os.path.join(proto_dir, "k40.n1.pmi.protosim"))
+                # os.path.join(proto_dir, "k40.n1.bio.pmi.protosim"))
+ 
+    #read data fron fi: yield X: list of items (dict('w':_, 'pos':_, 'chk':_))
+    #feature extractor
+    #output y, X[ind][F] to fo
+    f_in = open(data_in, 'r')
+    f_out = open(output, 'w')
+    crfutils.main(feature_extractor, templates, fields=fields, sep=separator, fi=f_in, fo=f_out)
+
 if __name__ == '__main__':
 
     ### for cluster features
     emb_source = "w2v"
     n_cluster = "compound"
 
+    if len(sys.argv) != 2:
+        print >> sys.stderr, "Usage: python %s [emb_type]" % (sys.argv[0])
+        print >> sys.stderr, "emb_type = de|ce|bi|proto|bc|none"
+        sys.exit(1)
+
+    emb_type = sys.argv[1]
+    append_wfeatures(emb_type)
+    templates = get_templates()
+
     ### for prototype features
     normalize = "n1"
-    k = 90
+    k = 40 #90
     # k = 600 # for binary classification
     thresh = "0.5" # 0.5 performs the best
 
@@ -545,7 +588,7 @@ if __name__ == '__main__':
     if 'de' in W:
         # load_dense_emb(os.path.join(emb_dir, "w2v.txt"))
         # print >> sys.stderr, "load word embeddings"
-        load_dense_emb(os.path.join(emb_dir, "glove_6B_300.txt"))
+        load_dense_emb(os.path.join(emb_dir, "glove.6B.300d.txt"))
     if 'se' in W:
         load_sparse_emb(os.path.join(emb_dir, "glove_300_3000_l1-1_l2_1e-5"))
         # load_sparse_emb(os.path.join(emb_dir, "sample"))
@@ -560,5 +603,9 @@ if __name__ == '__main__':
         load_binarized_emb(
                 os.path.join(binarize_dir, "w2v.bi-mean.txt"))
 
-    crfutils.main(feature_extractor, fields=fields, sep=separator)
+    #read data from std.in: yield X: list of items (dict('w':_, 'pos':_, 'chk':_))
+    #feature extractor
+    #output y, X[ind][F] to std.out
+    crfutils.main(feature_extractor, templates, fields=fields, sep=separator, fi=sys.stdin, fo=sys.stdout)
+
 
