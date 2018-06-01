@@ -164,7 +164,7 @@ class LsaWordVectorizer(BaseWordVectorizer):
              acquiring specific word vector. Call fit_word_vectors(corpus_path)')
 
         ind = self.vocabulary.get(term)
-        if not ind:
+        if ind is None:
             raise KeyError('term {} is not in the vocabulary'.format(term))
 
         if use_norm:

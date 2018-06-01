@@ -3,6 +3,7 @@
 import os 
 import pickle
 
+from exceptions import *
 import traceback
 
 MODEL_PATH = 'models'
@@ -11,6 +12,18 @@ class BaseWordVectorizer(object):
     """BaseWordVectorizer"""
     def __init__(self):
         super(BaseWordVectorizer, self).__init__()
+
+    def get_dim(self):
+        return self.vector_dim
+  
+    def __contains__(self, w):
+        if not hasattr(self, 'vocabulary') :
+            raise NotFittedError('call fit_word_vectors first')
+
+        if w in self.vocabulary:
+            return True
+        else:
+            return False
 
     def save_model(self, model_path=None):
         if model_path is None:

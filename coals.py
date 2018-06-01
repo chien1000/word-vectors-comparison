@@ -34,6 +34,12 @@ class CoalsWordVectorizer(HalWordVectorizer):
         self.vocabulary = vocabulary
         self.dtype = dtype
 
+    def get_dim(self):
+        if self.svd_dim is not None:
+            return self.svd_dim 
+        else:
+            return  self.max_features
+
     def get_name(self):
         return 'COALS'
 

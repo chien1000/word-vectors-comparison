@@ -23,6 +23,9 @@ class LdaWordVectorizer(BaseWordVectorizer):
         # self.id2word = id2word #https://github.com/RaRe-Technologies/gensim/blob/develop/gensim/corpora/dictionary.py
         self.random_state = random_state
 
+    def get_dim(self):
+        return self.num_topics
+        
     def get_name(self):
         return 'LDA'
 
@@ -158,7 +161,7 @@ class LdaWordVectorizer(BaseWordVectorizer):
              acquiring specific word vector. Call fit_word_vectors(corpus_path)')
 
         ind = self.vocabulary.get(term)
-        if not ind:
+        if ind is None:
             raise KeyError('term {} is not in the vocabulary'.format(term))
 
         if use_norm:

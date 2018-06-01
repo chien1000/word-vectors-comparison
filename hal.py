@@ -4,7 +4,7 @@ import pickle
 import six
 from six import string_types
 
-from collections import Mapping, defaultdict
+from collections import Mapping, defaultdict, Counter
 import numbers
 import numpy as np
 import scipy.sparse as sp
@@ -69,7 +69,7 @@ class HalWordVectorizer(BaseWordVectorizer):
         Type of the matrix returned by fit_transform() or transform().
     """
 
-    def __init__(self, window_size = 10, max_features=None,
+    def __init__(self, window_size = 10, max_features=None, min_count=None,
                  vocabulary=None, dtype=np.int64):
         
         # super(HalWordVectorizer, self).__init__()
@@ -82,9 +82,20 @@ class HalWordVectorizer(BaseWordVectorizer):
                 raise ValueError(
                     "max_features=%r, neither a positive integer nor None"
                     % max_features)
+
+        self.min_count = min_count or 0
+        if min_count is not None:
+            if not isinstance(min_count, numbers.Integral):
+                raise ValueError(
+                    "min_count=%r, neither a integer nor None"
+                    % min_count)
+
         self.vocabulary = vocabulary
         self.dtype = dtype
 
+    def get_dim(self):
+        return self.max_features
+        
     def get_name(self):
         return 'HAL'
 
@@ -113,7 +124,7 @@ class HalWordVectorizer(BaseWordVectorizer):
 
         window_size = self.window_size
         for doc in docs:
-            doc = doc.split(' ')
+            doc = doc.split()
             doc_length = len(doc)
 
             for i, feature in enumerate(doc):
@@ -196,9 +207,21 @@ class HalWordVectorizer(BaseWordVectorizer):
                 self.word_vectors_norm = normalize(self.word_vectors, norm='l2', axis=1, copy=True)
     
     def fit_word_vectors(self, corpus_path):
-
         # self._validate_vocabulary()
         docs = LineCorpus(corpus_path)
+
+        word_counter = Counter()
+        for doc in docs:
+            word_counter.update(doc.split())
+
+        vocabulary = {}    
+        freq_count = 0
+        for w, c in word_counter.items():
+            if c >= self.min_count:
+                vocabulary[w] = freq_count
+                freq_count+=1
+        self.vocabulary = vocabulary
+
         vocabulary, context_vocabulary, cooccurence_matrix = self._count_cooccurence(docs, False)
         self.vocabulary = vocabulary
         self.ind2word = [None] * len(self.vocabulary)
@@ -341,7 +364,7 @@ class HalWordVectorizer(BaseWordVectorizer):
              acquiring specific word vector. Call fit_word_vectors(corpus_path)')
 
         ind = self.vocabulary.get(term)
-        if not ind:
+        if ind is None:
             raise KeyError('term {} is not in the vocabulary'.format(term))
 
         if use_norm:
