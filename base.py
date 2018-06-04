@@ -2,6 +2,8 @@
 
 import os 
 import pickle
+import numpy as np
+import scipy.sparse as sp
 
 from exceptions import *
 import traceback
@@ -29,31 +31,50 @@ class BaseWordVectorizer(object):
         if model_path is None:
             model_path = MODEL_PATH
         mid =  self.get_mid()
-        mfile = mid + '.bin'
-        mpath = os.path.join(model_path, mfile)
 
+        # save wv matrix    
+        mfile = mid + '_wv.npz'
+        mpath = os.path.join(model_path, mfile)
+        if hasattr(self, 'use_sp_matrix') and self.use_sp_matrix and sp.issparse(self.word_vectors):
+            # for sparse matrix
+            sp.save_npz(mpath, self.word_vectors)
+
+        else:
+            np.savez(mpath, wv=self.word_vectors)
+
+        #save other data
+        mfile = mid + '_data.bin'
+        mpath = os.path.join(model_path, mfile)
         with open(mpath, 'wb') as fout:
-            dump_dict = {'word_vectors':self.word_vectors, 
-            'vocabulary':self.vocabulary, 'ind2word':self.ind2word}
+            dump_dict = {'ind2word':self.ind2word}
             pickle.dump(dump_dict, fout)
 
     def load_model(self, model_path=None):
         if model_path is None:
             model_path = MODEL_PATH
         mid =  self.get_mid()
-        mfile = mid + '.bin'
-        mpath = os.path.join(model_path, mfile)
-
+    
         try:
+            #load wv matrix
+            mfile = mid + '_wv.npz'
+            mpath = os.path.join(model_path, mfile)
+
+            if hasattr(self, 'use_sp_matrix') and self.use_sp_matrix:
+                self.word_vectors = sp.load_npz(mpath)
+            else:
+                self.word_vectors = np.load(mpath)['wv']
+
+            #save other data
+            mfile = mid + '_data.bin'
+            mpath = os.path.join(model_path, mfile)
             with open(mpath, 'rb') as fin:
                 dump_dict = pickle.load(fin)
-                self.word_vectors = dump_dict['word_vectors']
-                self.vocabulary = dump_dict['vocabulary']
                 self.ind2word = dump_dict['ind2word']
+                self.vocabulary = {w:i for i, w in enumerate(self.ind2word)}
                 if hasattr(self, 'init_sims'):
                     self.init_sims()
 
-        except FileNotFoundError as e:
+        except (FileNotFoundError,IOError) as e:
             print('model loading fails: file does not exist')
             self.word_vectors = None
 
