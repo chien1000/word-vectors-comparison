@@ -116,10 +116,10 @@ class HalWordVectorizer(BaseWordVectorizer):
         values = np.frombuffer(values, dtype=np.intc)
         # print(len(vocabulary))
         # print(row.max())
-        cooccurence_matrix = sp.coo_matrix((values, (row, col)), shape=(len(vocabulary), 
+        cooccurence_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
                                                                          len(vocabulary)*2)
                                            ,dtype=self.dtype)
-        cooccurence_matrix = cooccurence_matrix.tocsc()
+        # cooccurence_matrix = cooccurence_matrix.tocsc()
         # cooccurence_matrix.sort_indices()
 
 #         print(cooccurence_matrix.toarray())
