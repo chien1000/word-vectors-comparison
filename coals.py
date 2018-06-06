@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 import six
 from six import string_types
 
@@ -16,8 +16,8 @@ from gensim import matutils
 
 class CoalsWordVectorizer(HalWordVectorizer):
     """docstring for CoalsWordVectorizer"""
-    def __init__(self, window_size = 10, max_features=None, svd_dim=None,
-                        vocabulary=None, dtype=np.int64):
+    def __init__(self, window_size = 4, max_features=None, svd_dim=None,
+                        min_count=None, dtype=np.int64):
 
         self.window_size = window_size
         self.max_features = max_features
@@ -29,9 +29,16 @@ class CoalsWordVectorizer(HalWordVectorizer):
                     "max_features=%r, neither a positive integer nor None"
                     % max_features)
 
+        self.min_count = min_count or 0
+        if min_count is not None:
+            if not isinstance(min_count, numbers.Integral):
+                raise ValueError(
+                    "min_count=%r, neither a integer nor None"
+                    % min_count)
+
         self.stop_words = set(ENGLISH_CLOSED_CLASS_WORDS)
         # self.stop_words = None
-        self.vocabulary = vocabulary
+
         self.dtype = dtype
 
     def get_dim(self):
@@ -47,28 +54,18 @@ class CoalsWordVectorizer(HalWordVectorizer):
         mid = '{}_d{}_{}_window_{}'.format(self.get_name(), self.svd_dim, self.max_features, self.window_size)
         return mid
 
-    def _count_cooccurence(self, docs, fixed_vocab):
-        """Create sparse feature matrix, and vocabulary where fixed_vocab=False
+    def _count_cooccurence(self, docs):
+        """Create sparse feature matrix
         """
-        if fixed_vocab:
-            vocabulary = self.vocabulary
-        else:
-            # Add a new value when a new vocabulary item is seen
-            vocabulary = defaultdict()
-            vocabulary.default_factory = vocabulary.__len__ #自動幫新字產生index
-
-        context_vocabulary = defaultdict()
-        context_vocabulary.default_factory = context_vocabulary.__len__ #自動幫新字產生index
-
-        #
-        
+        vocabulary = self.vocabulary
+       
         row = _make_int_array()
         col = _make_int_array()
         values = _make_int_array()
 
         window_size = self.window_size
         for doc in docs:
-            doc = [t for t in doc.split() if t not in self.stop_words]
+            doc = [t for t in doc.split()]
             doc_length = len(doc)
 
             for i, feature in enumerate(doc):
@@ -78,75 +75,58 @@ class CoalsWordVectorizer(HalWordVectorizer):
                         if j == i:
                             continue
                         context_word = doc[j]
-                        context_idx = context_vocabulary[context_word]
+                        context_idx = vocabulary[context_word]
                         row.append(feature_idx)
                         col.append(context_idx)
                         diff = abs(j-i)-1
                         values.append(window_size-diff)
 
                 except KeyError:
-                    # Ignore out-of-vocabulary items for fixed_vocab=True
+                    # Ignore out-of-vocabulary items    
                     continue
 
-        if not fixed_vocab:
-            # disable defaultdict behaviour
-            vocabulary = dict(vocabulary) #不要自動幫新字產生index！！
-            if not vocabulary:
-                raise ValueError("empty vocabulary; perhaps the documents only"
-                                 " contain stop words")
-            context_vocabulary = dict(context_vocabulary)
-
-            
-        ###sort by alphebetic order
-        sorted_features = sorted(six.iteritems(vocabulary))
-        sorted_context = sorted(six.iteritems(context_vocabulary))
-
-        map_index_v = np.empty(len(sorted_features), dtype=np.int32)
-        for new_val, (term, old_val) in enumerate(sorted_features):
-            vocabulary[term] = new_val
-            map_index_v[old_val] = new_val
-
-        map_index_c = np.empty(len(sorted_context), dtype=np.int32)
-        for new_val, (term, old_val) in enumerate(sorted_context):
-            context_vocabulary[term] = new_val
-            map_index_c[old_val] = new_val
-
-        row = map_index_v.take(row, mode='clip')
-        col = map_index_c.take(col, mode='clip')
-
         values = np.frombuffer(values, dtype=np.intc)
-        cooccurence_matrix = sp.coo_matrix((values, (row, col)), shape=(len(vocabulary), 
-                                                                         len(context_vocabulary))
+        cooccurence_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
+                                                                         len(vocabulary))
                                            ,dtype=self.dtype)
-        cooccurence_matrix = cooccurence_matrix.tocsc()
-        # cooccurence_matrix.sort_indices()
-
+        # cooccurence_matrix = cooccurence_matrix.tocsc()
+        
 #         print(cooccurence_matrix.toarray())
-        return vocabulary, context_vocabulary, cooccurence_matrix  
+        return cooccurence_matrix  
 
     def fit_word_vectors(self, corpus_path):
 
         # self._validate_vocabulary()
         docs = LineCorpus(corpus_path)
-        vocabulary, context_vocabulary, cooccurence_matrix = self._count_cooccurence(docs, False)
+
+        # filter rare words according to self.min_count
+        word_counter = Counter()
+        for doc in docs:
+            word_counter.update(doc.split())
+
+        vocabulary = {}    
+        freq_count = 0
+        for w, c in word_counter.items():
+            if c >= self.min_count and w not in self.stop_words:
+                vocabulary[w] = freq_count
+                freq_count+=1
         self.vocabulary = vocabulary
         self.ind2word = [None] * len(self.vocabulary)
         for k, v in self.vocabulary.items():
             self.ind2word[v] = k
+        print('vocabulary size: {}'.format(len(vocabulary)))
 
+        cooccurence_matrix = self._count_cooccurence(docs)
+        
         if self.max_features: #discard all but the k columns reflecting the most common open-class words
-            freqs = np.sum(cooccurence_matrix, axis=0).A[0]
             k = self.max_features
-            topk_ind = np.sort(np.argsort(-freqs)[:k])
+            topk_words = word_counter.most_common(k+len(self.stop_words)) #
+            topk_ind = [self.vocabulary[w] for w, c in topk_words if w in self.vocabulary]
+            topk_ind = topk_ind[:k]
             cooccurence_matrix = cooccurence_matrix[:, topk_ind]
 
-            #update context vobabulary
-            terms = list(context_vocabulary.keys())
-            indices = np.array(list(context_vocabulary.values()))
-            sort_ind = np.argsort(indices)
-            inverse_context_vocabulary = [terms[ind] for ind in sort_ind]
-            new_context_vocabulary = {inverse_context_vocabulary[ind]:new_ind for new_ind, ind in enumerate(topk_ind)}
-            context_vocabulary = new_context_vocabulary
+            #reserved features
+            self.reserved_features = [self.ind2word[i] for i in topk_ind]
 
         #normalize
         ##convert counts to word pair correlations
@@ -195,7 +175,6 @@ class CoalsWordVectorizer(HalWordVectorizer):
             cooccurence_matrix = svd.fit_transform(cooccurence_matrix) # vocab_len * vector_dim
             self.svd = svd
 
-        self.context_vocabulary = context_vocabulary
         self.word_vectors = cooccurence_matrix
         self.init_sims()
 
