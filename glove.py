@@ -82,4 +82,23 @@ class GloveWordVectorizer(BaseWordVectorizer):
 
         return word_vec
 
+    def save_model(self, model_path='models'):
+         mid = self.get_mid()
+         mfile = mid + '_wv.bin'
+         mpath = os.path.join(model_path, mfile)
 
+         self.word_vectors.save(mpath)
+
+    def load_model(self, model_path=None):
+        mid =  self.get_mid()
+        mfile = mid + '_wv.bin'
+        mpath = os.path.join(model_path, mfile)
+
+        try:
+            self.word_vectors = KeyedVectors.load(mpath)
+            self.vocabulary = self.word_vectors.vocab
+            self.ind2word = None
+
+        except FileNotFoundError as e:
+            print('model loading fails: file does not exist')
+            self.word_vectors = None
