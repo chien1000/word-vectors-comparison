@@ -2,6 +2,7 @@
 
 from config import run_config
 
+import evaluations
 from evaluations import evaluate_word_sims, evaluate_word_analogies
 from ner_embedding_features.src import enner
 
@@ -14,7 +15,7 @@ import subprocess
 #logging
 
 logger = logging.getLogger('compare')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 # logger.setLevel(logging.INFO)
 
 ch = logging.StreamHandler()
@@ -64,6 +65,7 @@ log_formatter = logging.Formatter('# %(asctime)s  \n%(message)s')
 fh.setFormatter(log_formatter)
 
 logger.addHandler(fh)
+evaluations.logger = logger
 
 #model
 models = run_config['models']
@@ -95,11 +97,11 @@ if 'sim' in run_config['eval']:
 
     for dataset, dataset_name in zip(sim_datasets, sim_dataset_names):
         logger.warning('# ========= {} ========='.format(dataset_name))
-        logger.warning('model,pearson, spearman, oov_ratio')
+        logger.warning('!model,pearson, spearman, oov_ratio')
         for m in models:
             try:
                 pearson, spearman, oov_ratio = evaluate_word_sims(m, m.get_name(), dataset,  delimiter=',')
-                logger.warning('{},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), pearson[0], spearman[0], oov_ratio))
+                logger.warning('!{},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), pearson[0], spearman[0], oov_ratio))
 
             except Exception as e:
                 s = traceback.format_exc()
@@ -110,12 +112,12 @@ if 'anal' in run_config['eval']:
 
     google_anal = 'data/evaluations/google_analogies.txt'
     logger.warning('# ========= Google Analogies =========')
-    logger.warning('model, analogies_score, oov_ratio')
+    logger.warning('!model, analogies_score, oov_ratio')
 
     for m in models:
         try:
             analogies_score, sections, oov_ratio = evaluate_word_analogies(m, m.get_name(), google_anal, restrict_vocab=300000, case_insensitive=True, dummy4unknown=False)
-            logger.warning('{},{:.4f},{:.4f}'.format(m.get_name(), analogies_score, oov_ratio))
+            logger.warning('!{},{:.4f},{:.4f}'.format(m.get_name(), analogies_score, oov_ratio))
 
         except Exception as e:
             s = traceback.format_exc()

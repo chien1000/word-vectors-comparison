@@ -10,9 +10,9 @@ logger.setLevel(logging.INFO)
 def log_evaluate_word_sims(pearson, spearman, oov, name, pairs):
     # print('--------------------{}--------------------'.format(name))
     pairs = os.path.basename(pairs)
-    print('{} Pearson correlation coefficient against {}: {:.4f}'.format(name, pairs, pearson[0]))
-    print('{} Spearman rank-order correlation coefficient against {}: {:.4f}'.format(name, pairs, spearman[0]))
-    print('{} Pairs with unknown words ratio: {:.1f}%'.format(name, oov))
+    logger.info('{} Pearson correlation coefficient against {}: {:.4f}'.format(name, pairs, pearson[0]))
+    logger.info('{} Spearman rank-order correlation coefficient against {}: {:.4f}'.format(name, pairs, spearman[0]))
+    logger.info('{} Pairs with unknown words ratio: {:.1f}%'.format(name, oov))
 
 def evaluate_word_sims(model, name, pairs, delimiter='\t', restrict_vocab=300000,
                             case_insensitive=True, dummy4unknown=False):
@@ -108,7 +108,7 @@ def log_evaluate_word_analogies(name, section):
         correct, incorrect = len(section['correct']), len(section['incorrect'])
         if correct + incorrect > 0:
             score = correct / (correct + incorrect)
-            print("{} {}: {:.1f}% ({}/{})".format(name, section['section'], 100.0 * score, correct, correct + incorrect))
+            logger.info("{} {}: {:.1f}% ({}/{})".format(name, section['section'], 100.0 * score, correct, correct + incorrect))
             return score
 
 def evaluate_word_analogies(model, name, analogies, restrict_vocab=300000, case_insensitive=True, dummy4unknown=False):
