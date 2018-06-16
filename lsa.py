@@ -1,4 +1,7 @@
 import numpy as np
+import scipy.sparse as sp
+from scipy.stats import entropy
+
 import os
 import sklearn
 from sklearn.decomposition import TruncatedSVD
@@ -10,12 +13,22 @@ from sklearn.metrics.pairwise import cosine_similarity
 from six import string_types
 from gensim import matutils
 
-from base import BaseWordVectorizer
+from base import BaseWordVectorizer, get_vocabulary
 from corpus import LineCorpus
 from exceptions import *
 
+def word_entropy(vec):
+    if sp.issparse(vec):
+        vec = vec.toarray()
+
+    vec = vec.squeeze()+ 0.00000001
+    rsum = vec.sum()
+    vec = vec/rsum
+    e = entropy(vec)
+    return e
+
 class LsaWordVectorizer(BaseWordVectorizer):
-    def __init__(self, vector_dim, count_normalization = None):
+    def __init__(self, vector_dim, count_normalization=None, min_count=0):
         
 #         super(LsaWordVectorizer, self).__init__()
 
@@ -23,14 +36,12 @@ class LsaWordVectorizer(BaseWordVectorizer):
 #         self.min_df = min_df
         
         self.count_normalization = count_normalization
-        if count_normalization is None:
-            self.vectorizer = CountVectorizer(token_pattern=r'(?u)\b\S+\b',)
-        elif count_normalization == 'tfidf':
-            self.vectorizer = TfidfVectorizer(token_pattern=r'(?u)\b\S+\b', #標點都會被拿掉..
-                                        sublinear_tf=True, use_idf=True)
-        else:
-            raise ValueError("not a valid normalization method: {}".format(count_normalization))
-    
+        if count_normalization is not None:
+            if count_normalization not in set(['entropy','tfidf']):
+                raise ValueError("not a valid normalization method: {}".format(count_normalization))
+
+        self.min_count = min_count
+
     def get_name(self):
         return 'LSA'
 
@@ -44,21 +55,40 @@ class LsaWordVectorizer(BaseWordVectorizer):
         
     def fit_word_vectors(self, corpus_path):
         docs = LineCorpus(corpus_path)
-        dtm = self.vectorizer.fit_transform(docs)
+        self.ind2word, self.vocabulary = get_vocabulary(docs, self.min_count)
+        print('vocabulary size: {}'.format(len(self.vocabulary)))
 
-        self.vocabulary = self.vectorizer.vocabulary_
-        self.ind2word = [None] * len(self.vocabulary)
-        for k, v in self.vocabulary.items():
-            self.ind2word[v] = k
+        if self.count_normalization is None:
+            self.vectorizer = CountVectorizer(vocabulary=self.vocabulary,tokenizer=str.split)
+        elif self.count_normalization == 'entropy':
+            self.vectorizer = CountVectorizer(vocabulary=self.vocabulary,tokenizer=str.split)
+        elif self.count_normalization == 'tfidf':
+            self.vectorizer = TfidfVectorizer(vocabulary=self.vocabulary,tokenizer=str.split,
+                                        sublinear_tf=True, use_idf=True)
+        
+        dtm = self.vectorizer.fit_transform(docs)
 
         tdm = dtm.T
         tdm = tdm.asfptype()
+
+        if self.count_normalization == 'entropy':
+            #apply entropy normalization
+            print('apply entropy normalization')
+            vlen = tdm.shape[0]
+            H = np.zeros((vlen,1)) # row entropy
+            for i in range(vlen):
+                H[i,0] = word_entropy(tdm[i, ])
+            
+            tdm.data = np.log(tdm.data+1)
+            tdm = tdm.multiply(1/H)
+            
         svd = TruncatedSVD(self.vector_dim, algorithm = 'arpack')
-        tdm_svd = svd.fit_transform(tdm) # vocab_len * vector_dim
+        tdm_svd = svd.fit_transform(tdm) # vocab_len * vector_dim (U * sigma)
         # tdm_svd = Normalizer(copy=False).fit_transform(tdm_svd) 
         
-        self.svd = svd #components_ : vector_dim* doc_len
+        self.svd = svd #components_ : vector_dim* doc_len (aka. transpose of T)
         self.word_vectors = tdm_svd
+
         self.init_sims(replace=True)
 
     def init_sims(self, replace=False):
@@ -78,10 +108,10 @@ class LsaWordVectorizer(BaseWordVectorizer):
 
     def get_similarity(self, term1, term2):
 
-        v1 = self.get_word_vector(term1).reshape(1, -1)
-        v2 = self.get_word_vector(term2).reshape(1, -1)
+        v1 = self.get_word_vector(term1, use_norm=True)
+        v2 = self.get_word_vector(term2, use_norm=True)
 
-        sim = cosine_similarity(v1, v2)[0][0]
+        sim = v1.dot(v2)
 
         return sim
 
