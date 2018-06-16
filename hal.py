@@ -15,7 +15,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 from gensim import matutils
 
 # from stop_words import ENGLISH_STOP_WORDS
-from base import BaseWordVectorizer
+from base import BaseWordVectorizer, get_vocabulary
 from corpus import LineCorpus
 from exceptions import *
 
@@ -142,23 +142,9 @@ class HalWordVectorizer(BaseWordVectorizer):
     def fit_word_vectors(self, corpus_path):
 
         docs = LineCorpus(corpus_path)
-
         # filter rare words according to self.min_count
-        word_counter = Counter()
-        for doc in docs:
-            word_counter.update(doc.split())
-
-        vocabulary = {}    
-        freq_count = 0
-        for w, c in word_counter.items():
-            if c >= self.min_count:
-                vocabulary[w] = freq_count
-                freq_count+=1
-        self.vocabulary = vocabulary
-        self.ind2word = [None] * len(self.vocabulary)
-        for k, v in self.vocabulary.items():
-            self.ind2word[v] = k
-        print('vocabulary size: {}'.format(len(vocabulary)))
+        self.ind2word, self.vocabulary = get_vocabulary(docs, self.min_count)
+        print('vocabulary size: {}'.format(len(self.vocabulary)))
 
         #count cooccurence
         cooccurence_matrix = self._count_cooccurence(docs)

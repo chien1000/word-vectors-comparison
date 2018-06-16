@@ -4,11 +4,31 @@ import os
 import pickle
 import numpy as np
 import scipy.sparse as sp
+from collections import Counter
 
 from exceptions import *
 import traceback
 
 MODEL_PATH = 'models'
+
+def get_vocabulary(docs, min_count=0):
+    # filter rare words according to self.min_count
+    word_counter = Counter()
+    for doc in docs:
+        word_counter.update(doc.split())
+
+    vocabulary = {}    
+    freq_count = 0
+    for w, c in word_counter.items():
+        if c >= min_count:
+            vocabulary[w] = freq_count
+            freq_count+=1
+    
+    ind2word = [None] * len(vocabulary)
+    for k, v in vocabulary.items():
+        ind2word[v] = k
+    # print('vocabulary size: {}'.format(len(vocabulary)))
+    return ind2word, vocabulary
 
 class BaseWordVectorizer(object):
     """BaseWordVectorizer"""
