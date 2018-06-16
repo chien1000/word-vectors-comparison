@@ -41,7 +41,7 @@ class HalWordVectorizer(BaseWordVectorizer):
         Type of the matrix returned by fit_transform() or transform().
     """
 
-    def __init__(self, window_size = 10, max_features=None, min_count=None,
+    def __init__(self, window_size = 10, max_features=None, min_count=0,
                  dtype=np.int64):
         
         # super(HalWordVectorizer, self).__init__()
@@ -55,7 +55,7 @@ class HalWordVectorizer(BaseWordVectorizer):
                     "max_features=%r, neither a positive integer nor None"
                     % max_features)
 
-        self.min_count = min_count or 0
+        self.min_count = min_count 
         if min_count is not None:
             if not isinstance(min_count, numbers.Integral):
                 raise ValueError(
