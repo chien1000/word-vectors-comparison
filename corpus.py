@@ -6,6 +6,7 @@ import numbers
 from smart_open import smart_open
 import itertools
 import random
+from collections import Counter
 
 class LineCorpus(object):
     """ one line for one doc or one sentence """
@@ -82,11 +83,16 @@ class Reuters(object):
         
         #iterator
 
+from gensim.corpora.dictionary import Dictionary
 from gensim.corpora.textcorpus import TextCorpus
 from gensim.corpora.textcorpus import lower_to_unicode, strip_multiple_whitespaces, remove_stopwords, remove_short
 from gensim.utils import deaccent, simple_tokenize
 
+import types
 import subprocess
+
+import logging
+logger = logging.getLogger(__name__)
 
 def file_len(fname):
     p = subprocess.Popen(['wc', '-l', fname], stdout=subprocess.PIPE, 
@@ -96,13 +102,52 @@ def file_len(fname):
         raise IOError(err)
     return int(result.strip().split()[0])
 
+class MyDictionary(Dictionary):
+    """add min_count filtering to Dictionary"""
+    def __init__(self, documents=None, min_count=0):
+
+        self.token2id = {}
+        self.id2token = {}
+        self.dfs = {} #Document frequencies: token_id -> in how many documents contain this token.
+
+        self.num_docs = 0
+        self.num_pos = 0 # Total number of corpus positions (number of processed words).
+        self.num_nnz = 0 # Total number of non-zeroes in the BOW matrix.
+
+        self.min_count = min_count
+
+        if documents is not None:
+            self.add_documents(documents)
+
+    def add_documents(self, documents):
+        min_count = self.min_count
+        wcounter = Counter()
+        
+        for docno, document in enumerate(documents):
+            # log progress every 10k docs
+            if docno % 10000 == 0:
+                logger.info("adding document #%i to %s", docno, self)
+
+            # update Dictionary with the document
+            id2freq = self.doc2bow(document, allow_update=True) 
+            wcounter.update(dict(id2freq))
+
+        #filter tokens less than min_count
+        good_ids = [wid for wid,c in wcounter.items() if c>=min_count]
+        self.filter_tokens(good_ids=good_ids)
+
+        logger.info(
+            "built %s from %i documents (total %i corpus positions)",
+            self, self.num_docs, self.num_pos
+        )     
+
 def remove_numbers(tokens):
     return [token for token in tokens if not str.isdigit(token)]
         
 class MyTextCorpus(TextCorpus):
     #add remove_numbers
 
-    def __init__(self, input=None, dictionary=None, metadata=False, character_filters=None,
+    def __init__(self, input=None, dictionary=None, min_count=0, metadata=False, character_filters=None,
                  tokenizer=None, token_filters=None):
 
         # super(MyTextCorpus, self).__init__(input=input, dictionary=dictionary, metadata=metadata,
@@ -127,8 +172,31 @@ class MyTextCorpus(TextCorpus):
         
         self.length = None
         self.dictionary = None
-        self.init_dictionary(dictionary)
+        self.init_dictionary(dictionary, min_count=min_count)
 
+    def init_dictionary(self, dictionary, min_count=0):
+        """Initialize/update dictionary.
+        Parameters
+        ----------
+        dictionary : :class:`~gensim.corpora.dictionary.Dictionary`, optional
+            If a dictionary is provided, it will not be updated with the given corpus on initialization.
+            If None - new dictionary will be built for the given corpus.
+        Notes
+        -----
+        If self.input is None - make nothing.
+        """
+        self.dictionary = dictionary if dictionary is not None else MyDictionary(min_count=min_count)
+        if self.input is not None:
+            if dictionary is None:
+                logger.info("Initializing dictionary")
+                metadata_setting = self.metadata
+                self.metadata = False
+                self.dictionary.add_documents(self.get_texts())
+                self.metadata = metadata_setting
+            else:
+                logger.info("Input stream provided but dictionary already initialized")
+        else:
+            logger.warning("No input document stream provided; assuming dictionary will be initialized some other way.")
 
     def get_text_str(self):
         lines = self.getstream()
@@ -148,19 +216,26 @@ class MyTextCorpus(TextCorpus):
         """
         lines = self.getstream()
         
-        for lineno, line in enumerate(lines):
-            tokens = self.preprocess_text(line)
+        if self.metadata:
+            for lineno, line in enumerate(lines):
+                tokens = self.preprocess_text(line)
+                if isinstance(tokens, types.GeneratorType):
+                    tokens = list(tokens)
 
-            if max_sentence_length is None:
-                max_sentence_length = len(tokens) 
-            i = 0
-            while i < len(tokens):
-                if self.metadata:
-                    yield tokens[i: i + max_sentence_length], (lineno,)
-                else:
+                yield tokens, (lineno,)
+ 
+        else:
+            for line in lines:
+                tokens = self.preprocess_text(line)
+                if isinstance(tokens, types.GeneratorType):
+                    tokens = list(tokens)
+
+                if max_sentence_length is None:
+                    max_sentence_length = len(tokens) 
+                i = 0
+                while i < len(tokens):
                     yield tokens[i: i + max_sentence_length]
-
-                i += max_sentence_length
+                    i += max_sentence_length
 
     # def __iter__(self):
     #     for text in self.get_texts():
