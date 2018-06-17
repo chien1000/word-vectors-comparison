@@ -7,13 +7,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 from six import string_types
 from six.moves import xrange
 
-# from corpus import MyTextCorpus
-from base import BaseWordVectorizer
+from corpus import LineCorpus, MyTextCorpus
+from base import BaseWordVectorizer, get_vocabulary
 from exceptions import *
 
 class LdaWordVectorizer(BaseWordVectorizer):
     """docstring for LdaWordVectorizer"""
-    def __init__(self, num_topics=50, alpha=1, eta=0.01, passes=1, random_state=None):
+    def __init__(self, num_topics=50, alpha=1, eta=0.01, passes=1, random_state=None, min_count=0):
         # super(LdaWordVectorizer, self).__init__()
         self.num_topics = num_topics 
         self.alpha = alpha
@@ -22,6 +22,8 @@ class LdaWordVectorizer(BaseWordVectorizer):
 
         # self.id2word = id2word #https://github.com/RaRe-Technologies/gensim/blob/develop/gensim/corpora/dictionary.py
         self.random_state = random_state
+
+        self.min_count = min_count
 
     def get_dim(self):
         return self.num_topics
@@ -35,22 +37,30 @@ class LdaWordVectorizer(BaseWordVectorizer):
         return mid
 
     def fit_word_vectors(self, corpus_path):
-        # corpus = TextCorpus(corpus_path)
-        corpus = TextCorpus(corpus_path,  token_filters=[]) #character_filters=[lambda x:x],
+
+        corpus = TextCorpus(corpus_path, tokenizer=str.split, token_filters=[])
+        # corpus = MyTextCorpus(corpus_path, tokenizer=str.split,
+        #     token_filters=[], min_count=self.min_count) #character_filters=[lambda x:x],
         id2word = corpus.dictionary #https://github.com/RaRe-Technologies/gensim/blob/develop/gensim/corpora/dictionary.py
         
+        self.ind2word, self.vocabulary = get_vocabulary(LineCorpus(corpus_path), self.min_count)
+        id2word.token2id = self.vocabulary
+        id2word.id2token = self.ind2word
+        id2word.dfs = {} # useless here
+        print('vocabulary size: {}'.format(len(self.vocabulary)))
+
         self.model = LdaModel(corpus, num_topics=self.num_topics,
             alpha=self.alpha, eta=self.eta, passes=self.passes, 
             id2word=id2word, random_state=self.random_state)
         
-        self.vocabulary = self.model.id2word.token2id
-        self.ind2word =  self.model.id2word.id2token
+        # self.vocabulary = self.model.id2word.token2id
+        # self.ind2word =  self.model.id2word.id2token
 
         topic_word_dist = self.model.state.get_lambda()
         topic_word_dist = np.log(topic_word_dist)
-        row_sum = topic_word_dist.sum(axis=0)
+        col_sum = topic_word_dist.sum(axis=0)
 
-        self.word_vectors = topic_word_dist/row_sum
+        self.word_vectors = topic_word_dist/col_sum
         self.word_vectors = self.word_vectors.transpose() # word * topic
 
         self.init_sims(replace=True)
@@ -74,11 +84,11 @@ class LdaWordVectorizer(BaseWordVectorizer):
 
     def get_similarity(self, term1, term2):
         #cosine sim
-        v1 = self.__getitem__(term1).reshape(1, -1)
-        v2 = self.__getitem__(term2).reshape(1, -1)
+        v1 = self.get_word_vector(term1, use_norm=True)
+        v2 = self.get_word_vector(term2, use_norm=True)
 
-        sim = cosine_similarity(v1, v2)[0][0]
-        
+        sim = v1.dot(v2)
+
         return sim
 
     def most_similar(self, positive=None, negative=None, topn=10, restrict_vocab=None, indexer=None):
