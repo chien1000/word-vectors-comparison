@@ -1,6 +1,5 @@
 import numpy as np
 import scipy.sparse as sp
-from scipy.stats import entropy
 
 import os
 import sklearn
@@ -13,19 +12,26 @@ from sklearn.metrics.pairwise import cosine_similarity
 from six import string_types
 from gensim import matutils
 
+from datetime import datetime
+
 from base import BaseWordVectorizer, get_vocabulary
 from corpus import LineCorpus
 from exceptions import *
 
-def word_entropy(vec):
-    if sp.issparse(vec):
-        vec = vec.toarray()
+def word_entropy(vecs):
+    if sp.issparse(vecs):
+        vecs = vecs.toarray()
 
-    vec = vec.squeeze()+ 0.00000001
-    rsum = vec.sum()
-    vec = vec/rsum
-    e = entropy(vec)
-    return e
+    vecs = vecs + 0.000001 # smoothing
+    row_sum = vecs.sum(axis=1).reshape(-1, 1)
+
+    vecs = vecs / row_sum
+    assert (vecs>=0).all()
+    vecs_log = np.log(vecs)
+
+    H = -1 * np.multiply(vecs, vecs_log).sum(axis=1)
+
+    return H
 
 class LsaWordVectorizer(BaseWordVectorizer):
     def __init__(self, vector_dim, count_normalization=None, min_count=0):
@@ -73,15 +79,21 @@ class LsaWordVectorizer(BaseWordVectorizer):
 
         if self.count_normalization == 'entropy':
             #apply entropy normalization
+            print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             print('apply entropy normalization')
             vlen = tdm.shape[0]
             H = np.zeros((vlen,1)) # row entropy
-            for i in range(vlen):
-                H[i,0] = word_entropy(tdm[i, ])
+            step = 1000
+            for i in range(0, vlen, step):
+                start, end = i, i+step
+                end = end if end < vlen else vlen
+                H[start:end,0] = word_entropy(tdm[start:end, ])
             
             tdm.data = np.log(tdm.data+1)
             tdm = tdm.multiply(1/H)
-            
+        
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        print('start performing svd')
         svd = TruncatedSVD(self.vector_dim, algorithm = 'arpack')
         tdm_svd = svd.fit_transform(tdm) # vocab_len * vector_dim (U * sigma)
         # tdm_svd = Normalizer(copy=False).fit_transform(tdm_svd) 
