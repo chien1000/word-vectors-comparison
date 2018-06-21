@@ -83,6 +83,7 @@ class HalWordVectorizer(BaseWordVectorizer):
         row = _make_int_array()
         col = _make_int_array()
         values = _make_int_array()
+        cooccurence_matrix = sp.csc_matrix((len(vocabulary), len(vocabulary)*2) ,dtype=self.dtype)
 
         window_size = self.window_size
         for doc in docs:
@@ -113,12 +114,16 @@ class HalWordVectorizer(BaseWordVectorizer):
                     # Ignore out-of-vocabulary items
                     continue
 
-        values = np.frombuffer(values, dtype=np.intc)
-        # print(len(vocabulary))
-        # print(row.max())
-        cooccurence_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
-                                                                         len(vocabulary)*2)
-                                           ,dtype=self.dtype)
+            values = np.frombuffer(values, dtype=np.intc)
+
+            doc_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
+                                                                             len(vocabulary)*2), dtype=self.dtype)
+            cooccurence_matrix += doc_matrix
+            # reset
+            row = _make_int_array()
+            col = _make_int_array()
+            values = _make_int_array()
+
         # cooccurence_matrix = cooccurence_matrix.tocsc()
         # cooccurence_matrix.sort_indices()
 
