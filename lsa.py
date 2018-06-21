@@ -14,7 +14,7 @@ from gensim import matutils
 
 from datetime import datetime
 
-from base import BaseWordVectorizer, get_vocabulary
+from base import BaseWordVectorizer, get_vocabulary, MODEL_PATH
 from corpus import LineCorpus
 from exceptions import *
 
@@ -56,7 +56,7 @@ class LsaWordVectorizer(BaseWordVectorizer):
         # corpus_name = ''
         # if hasattr(self, 'corpus_path'): 
 
-        mid = '{}_d{}_{}'.format(self.get_name(), self.vector_dim, count_norm)
+        mid = '{}_d{}_{}_mc{}'.format(self.get_name(), self.vector_dim, count_norm, self.min_count)
         return mid
         
     def fit_word_vectors(self, corpus_path):
@@ -81,17 +81,28 @@ class LsaWordVectorizer(BaseWordVectorizer):
             #apply entropy normalization
             print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             print('apply entropy normalization')
-            vlen = tdm.shape[0]
-            H = np.zeros((vlen,1)) # row entropy
-            step = 1000
-            for i in range(0, vlen, step):
-                start, end = i, i+step
-                end = end if end < vlen else vlen
-                H[start:end,0] = word_entropy(tdm[start:end, ])
-            
-            tdm.data = np.log(tdm.data+1)
-            tdm = tdm.multiply(1/H)
-        
+
+            corpus_name = os.path.splitext(os.path.basename(corpus_path))[0]
+            save_tdm_path =  '{}_mc{}_tdm.npz'.format(corpus_name, self.min_count)
+            save_tdm_path = os.path.join(MODEL_PATH, save_tdm_path)
+
+            try:
+                tdm = sp.load_npz(save_tdm_path)
+                print('load existed normalized tdm')
+
+            except Exception as e:
+                vlen = tdm.shape[0]
+                H = np.zeros((vlen,1)) # row entropy
+                step = 1000
+                for i in range(0, vlen, step):
+                    start, end = i, i+step
+                    end = end if end < vlen else vlen
+                    H[start:end,0] = word_entropy(tdm[start:end, ])
+                
+                tdm.data = np.log(tdm.data+1)
+                tdm = tdm.multiply(1/H)
+                sp.save_npz(save_tdm_path, tdm)
+
         print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         print('start performing svd')
         svd = TruncatedSVD(self.vector_dim, algorithm = 'arpack')
