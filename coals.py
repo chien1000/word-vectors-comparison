@@ -62,6 +62,7 @@ class CoalsWordVectorizer(HalWordVectorizer):
         row = _make_int_array()
         col = _make_int_array()
         values = _make_int_array()
+        cooccurence_matrix = sp.csc_matrix((len(vocabulary), len(vocabulary)), dtype=self.dtype)
 
         window_size = self.window_size
         for doc in docs:
@@ -85,13 +86,20 @@ class CoalsWordVectorizer(HalWordVectorizer):
                     # Ignore out-of-vocabulary items    
                     continue
 
-        values = np.frombuffer(values, dtype=np.intc)
-        cooccurence_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
-                                                                         len(vocabulary))
-                                           ,dtype=self.dtype)
+            values = np.frombuffer(values, dtype=np.intc)
+
+            doc_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
+                                                                             len(vocabulary)), dtype=self.dtype)
+            cooccurence_matrix += doc_matrix
+            # reset
+            row = _make_int_array()
+            col = _make_int_array()
+            values = _make_int_array()
+
         # cooccurence_matrix = cooccurence_matrix.tocsc()
         
 #         print(cooccurence_matrix.toarray())
+
         return cooccurence_matrix  
 
     def fit_word_vectors(self, corpus_path):
