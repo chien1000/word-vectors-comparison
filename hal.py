@@ -3,6 +3,7 @@ import re
 import pickle
 import six
 from six import string_types
+from datetime import datetime
 
 from collections import Mapping, defaultdict, Counter
 import numbers
@@ -86,6 +87,7 @@ class HalWordVectorizer(BaseWordVectorizer):
         cooccurence_matrix = sp.csc_matrix((len(vocabulary), len(vocabulary)*2) ,dtype=self.dtype)
 
         window_size = self.window_size
+        doc_id = 0
         for doc in docs:
             doc = doc.split()
             doc_length = len(doc)
@@ -114,15 +116,31 @@ class HalWordVectorizer(BaseWordVectorizer):
                     # Ignore out-of-vocabulary items
                     continue
 
-            values = np.frombuffer(values, dtype=np.intc)
+            
+            batch_size = 10000
+            if doc_id % batch_size ==0:
+                values = np.frombuffer(values, dtype=np.intc)
+                batch_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
+                                                                        len(vocabulary)*2), dtype=self.dtype)
+                cooccurence_matrix += batch_matrix
+                # reset
+                row = _make_int_array()
+                col = _make_int_array()
+                values = _make_int_array()
 
-            doc_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
-                                                                             len(vocabulary)*2), dtype=self.dtype)
-            cooccurence_matrix += doc_matrix
-            # reset
-            row = _make_int_array()
-            col = _make_int_array()
-            values = _make_int_array()
+                print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                print('processed #{} docs'.format(doc_id+1))
+
+            doc_id +=1
+
+        if len(values)  > 0: 
+            values = np.frombuffer(values, dtype=np.intc)
+            batch_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
+                                                                    len(vocabulary)*2), dtype=self.dtype)
+            cooccurence_matrix += batch_matrix
+
+            print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            print('processed #{} docs'.format(doc_id+1))
 
         # cooccurence_matrix = cooccurence_matrix.tocsc()
         # cooccurence_matrix.sort_indices()
@@ -159,8 +177,10 @@ class HalWordVectorizer(BaseWordVectorizer):
             # E[X^2] - (E[X])^2 or np.var?
             squared = cooccurence_matrix.copy() 
             squared.data = np.power(squared.data, 2)
+            assert (squared.data >= 0).all()
             mean_of_squared = squared.mean(0)
             squared_of_mean = np.power(cooccurence_matrix.mean(0), 2)
+            assert (squared_of_mean>=0).all()
             variance = (mean_of_squared - squared_of_mean).A
             variance = np.squeeze(variance, axis = 0)
             del squared

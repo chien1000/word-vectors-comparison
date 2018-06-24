@@ -1,6 +1,7 @@
 from collections import defaultdict, Counter
 import six
 from six import string_types
+from datetime import datetime
 
 from hal import HalWordVectorizer, _make_int_array
 from corpus import LineCorpus
@@ -65,7 +66,7 @@ class CoalsWordVectorizer(HalWordVectorizer):
         cooccurence_matrix = sp.csc_matrix((len(vocabulary), len(vocabulary)), dtype=self.dtype)
 
         window_size = self.window_size
-        for doc in docs:
+        for doc_id, doc in enumerate(docs):
             doc = [t for t in doc.split()]
             doc_length = len(doc)
 
@@ -86,16 +87,28 @@ class CoalsWordVectorizer(HalWordVectorizer):
                     # Ignore out-of-vocabulary items    
                     continue
 
+            batch_size = 10000
+            if doc_id % batch_size == 0:
+                values = np.frombuffer(values, dtype=np.intc)
+                batch_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
+                                                                                 len(vocabulary)), dtype=self.dtype)
+                cooccurence_matrix += batch_matrix
+                # reset
+                row = _make_int_array()
+                col = _make_int_array()
+                values = _make_int_array()
+
+                print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                print('processed #{} docs'.format(doc_id+1))
+
+        if len(values) > 0: 
             values = np.frombuffer(values, dtype=np.intc)
-
-            doc_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
+            batch_matrix = sp.csc_matrix((values, (row, col)), shape=(len(vocabulary), 
                                                                              len(vocabulary)), dtype=self.dtype)
-            cooccurence_matrix += doc_matrix
-            # reset
-            row = _make_int_array()
-            col = _make_int_array()
-            values = _make_int_array()
+            cooccurence_matrix += batch_matrix
 
+            print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            print('processed #{} docs'.format(doc_id+1))
         # cooccurence_matrix = cooccurence_matrix.tocsc()
         
 #         print(cooccurence_matrix.toarray())
