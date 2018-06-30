@@ -547,6 +547,7 @@ def generate_crfsuite_features(data_in, output, emb_type, wv=None):
         de_dimension = wv.get_dim()
         dense_emb = wv
 
+    W.clear()
     append_wfeatures(emb_type) # W.append('de')
     templates = get_templates()
 
