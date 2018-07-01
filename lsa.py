@@ -58,7 +58,8 @@ class LsaWordVectorizer(BaseWordVectorizer):
         # corpus_name = ''
         # if hasattr(self, 'corpus_path'): 
 
-        mid = '{}_d{}_{}_mc{}'.format(self.get_name(), self.vector_dim, count_norm, self.min_count)
+        name = self.get_name().split('(')[0]
+        mid = '{}_d{}_{}_mc{}'.format(name, self.vector_dim, count_norm, self.min_count)
         return mid
         
     def fit_word_vectors(self, corpus_path):
