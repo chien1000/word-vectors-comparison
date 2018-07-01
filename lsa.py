@@ -13,6 +13,7 @@ from six import string_types
 from gensim import matutils
 
 from datetime import datetime
+import pickle
 
 from base import BaseWordVectorizer, get_vocabulary, MODEL_PATH
 from corpus import LineCorpus
@@ -49,7 +50,8 @@ class LsaWordVectorizer(BaseWordVectorizer):
         self.min_count = min_count
 
     def get_name(self):
-        return 'LSA'
+        count_norm = self.count_normalization or 'no_count_norm'
+        return 'LSA({})'.format(count_norm)
 
     def get_mid(self):
         count_norm = self.count_normalization or 'no_count_norm'
@@ -85,23 +87,35 @@ class LsaWordVectorizer(BaseWordVectorizer):
             corpus_name = os.path.splitext(os.path.basename(corpus_path))[0]
             save_tdm_path =  '{}_mc{}_tdm.npz'.format(corpus_name, self.min_count)
             save_tdm_path = os.path.join(MODEL_PATH, save_tdm_path)
+            save_ind2word_path =  '{}_mc{}_ind2word.bin'.format(corpus_name, self.min_count)
+            save_ind2word_path = os.path.join(MODEL_PATH, save_ind2word_path)
 
             try:
                 tdm = sp.load_npz(save_tdm_path)
-                print('load existed normalized tdm')
+                with open(save_ind2word_path, 'rb') as fin:
+                    self.ind2word = pickle.load(fin)
+                    self.vocabulary = {w:i for i, w in enumerate(self.ind2word)}
+
+                print('load existed normalized tdm and vocab')
 
             except Exception as e:
                 vlen = tdm.shape[0]
                 H = np.zeros((vlen,1)) # row entropy
-                step = 1000
+                step = 2000
                 for i in range(0, vlen, step):
                     start, end = i, i+step
                     end = end if end < vlen else vlen
                     H[start:end,0] = word_entropy(tdm[start:end, ])
-                
+                    
+                    if i % 2000 == 0:
+                        print('finish computing entropy of {}/{} rows'.format(i, vlen))
+
                 tdm.data = np.log(tdm.data+1)
                 tdm = tdm.multiply(1/H)
+
                 sp.save_npz(save_tdm_path, tdm)
+                with open(save_ind2word_path, 'wb') as fout:
+                    pickle.dump(self.ind2word, fout)
 
         print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         print('start performing svd')
