@@ -51,14 +51,14 @@ class LsaWordVectorizer(BaseWordVectorizer):
 
     def get_name(self):
         count_norm = self.count_normalization or 'no_count_norm'
-        return 'LSA({})'.format(count_norm)
+        return 'LSA-{}'.format(count_norm)
 
     def get_mid(self):
         count_norm = self.count_normalization or 'no_count_norm'
         # corpus_name = ''
         # if hasattr(self, 'corpus_path'): 
 
-        name = self.get_name().split('(')[0]
+        name = self.get_name().split('-')[0]
         mid = '{}_d{}_{}_mc{}'.format(name, self.vector_dim, count_norm, self.min_count)
         return mid
         
