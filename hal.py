@@ -175,15 +175,17 @@ class HalWordVectorizer(BaseWordVectorizer):
         if self.max_features: #conserve top k cols with highest variance
             # compute variance 
             # E[X^2] - (E[X])^2 or np.var?
-            squared = cooccurence_matrix.copy() 
-            squared.data = np.power(squared.data, 2)
-            assert (squared.data >= 0).all()
-            mean_of_squared = squared.mean(0)
             squared_of_mean = np.power(cooccurence_matrix.mean(0), 2)
             assert (squared_of_mean>=0).all()
+            
+            cooccurence_matrix.data = np.power(cooccurence_matrix.data, 2)
+            assert (cooccurence_matrix.data >= 0).all()
+            mean_of_squared = cooccurence_matrix.mean(0)
+
             variance = (mean_of_squared - squared_of_mean).A
             variance = np.squeeze(variance, axis = 0)
-            del squared
+            
+            cooccurence_matrix.data = np.sqrt(cooccurence_matrix.data)
 
             # conserve top k cols
             k = self.max_features
