@@ -14,7 +14,7 @@ import traceback
 
 MODEL_PATH = 'models'
 
-def get_vocabulary(docs, min_count=0):
+def get_vocabulary(docs, min_count=0, sort_by_frequency=True):
     # filter rare words according to self.min_count
     word_counter = Counter()
     for doc in docs:
@@ -22,15 +22,23 @@ def get_vocabulary(docs, min_count=0):
 
     vocabulary = {}    
     freq_count = 0
-    for w, c in word_counter.items():
-        if c >= min_count:
-            vocabulary[w] = freq_count
-            freq_count+=1
+    if sort_by_frequency:
+        for w,c in word_counter.most_common():
+            if c >= min_count:
+                vocabulary[w] = freq_count
+                freq_count+=1
+            else:
+                break
+    else:
+        for w, c in word_counter.items():
+            if c >= min_count:
+                vocabulary[w] = freq_count
+                freq_count+=1
     
     ind2word = [None] * len(vocabulary)
     for k, v in vocabulary.items():
         ind2word[v] = k
-    # print('vocabulary size: {}'.format(len(vocabulary)))
+
     return ind2word, vocabulary
 
 class BaseWordVectorizer(object):
