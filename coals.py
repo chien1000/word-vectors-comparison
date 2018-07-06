@@ -215,89 +215,20 @@ class CoalsWordVectorizer(HalWordVectorizer):
         sim =  np.corrcoef(v1, v2)[0, 1]
     
         return sim
+    
+    def one2many_similarity(self, one_v, many_v, normalized=True):
+        one_v = one_v.reshape(1, -1) # 1*dim
+        many_v = many_v.reshape(-1, self.get_dim()) # n*dim
 
-    def most_similar(self, positive=None, negative=None, topn=10, restrict_vocab=None, indexer=None):
-        """
-        https://github.com/RaRe-Technologies/gensim/blob/develop/gensim/models/keyedvectors.py
-
-        Parameters
-        ----------
-        positive : :obj: `list` of :obj: `str`
-            List of words that contribute positively.
-        negative : :obj: `list` of :obj: `str`
-            List of words that contribute negatively.
-        topn : int
-            Number of top-N similar words to return.
-        restrict_vocab : int
-            Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
-            only check the first 10000 word vectors in the vocabulary order. (This may be
-            meaningful if you've sorted the vocabulary by descending frequency.)
-        Returns
-        -------
-        :obj: `list` of :obj: `tuple`
-            Returns a list of tuples (word, similarity)
-        Examples
-        --------
-        >>> trained_model.most_similar(positive=['woman', 'king'], negative=['man'])
-        [('queen', 0.50882536), ...]
-        """
-        if positive is None:
-            positive = []
-        if negative is None:
-            negative = []
-
-        self.init_sims()
-
-        if isinstance(positive, string_types) and not negative:
-            # allow calls like most_similar('dog'), as a shorthand for most_similar(['dog'])
-            positive = [positive]
-
-        # add weights for each word, if not already present; default to 1.0 for positive and -1.0 for negative words
-        positive = [
-            (word, 1.0) if isinstance(word, string_types + (np.ndarray,)) else word
-            for word in positive
-        ]
-        negative = [
-            (word, -1.0) if isinstance(word, string_types + (np.ndarray,)) else word
-            for word in negative
-        ]
-
-        # compute the weighted average of all words
-        all_words, mean = set(), []
-        for word, weight in positive + negative:
-            if isinstance(word, np.ndarray):
-                mean.append(weight * word)
-            else:
-                mean.append(weight * self.get_word_vector(word, use_norm=True))
-                ind = self.vocabulary.get(word)
-                if  ind:
-                    all_words.add(ind)
-        if not mean:
-            raise ValueError("cannot compute similarity with no input")
-        mean = matutils.unitvec(np.array(mean).mean(axis=0)).astype(np.float32)
-
-        if indexer is not None:
-            return indexer.most_similar(mean, topn)
-
-        # limited = self.word_vectors_norm if restrict_vocab is None else self.word_vectors_norm[:restrict_vocab]
-        
-        # sims = np.apply_along_axis(lambda x: np.corrcoef(x,mean)[0,1], 1, self.word_vectors_norm)
         # NOTE! 
         # there are some zero vectors with std = 0, causing errors(ZeroDivision) when calculating  corrcoef!
-        std = np.std(self.word_vectors_norm, axis=1)
+        std = np.std(many_v, axis=1)
         nonzero_mask = std != 0
-        n_vectors = self.word_vectors_norm.shape[0]
+        n_vectors = many_v.shape[0]
         sims = np.zeros(n_vectors)
-        vectors_with_std = self.word_vectors_norm[nonzero_mask,]
+        vectors_with_std = many_v[nonzero_mask,]
         # sims_with_std = np.apply_along_axis(lambda x: np.corrcoef(x,mean)[0,1], 1,vectors_with_std)
-        sims_with_std = (1 - cdist(mean[None,:], vectors_with_std, metric='correlation')).squeeze() #faster!!
+        sims_with_std = (1 - cdist(one_v, vectors_with_std, metric='correlation')).squeeze() #faster!!
         sims[nonzero_mask] = sims_with_std
 
-        if not topn:
-            return sims
-
-        best = matutils.argsort(sims, topn=topn + len(all_words), reverse=True) 
-        # ignore (don't return) words from the input
-        result = [(self.ind2word[ind], sims[ind]) for ind in best if ind not in all_words]
-        return result[:topn]
+        return sims

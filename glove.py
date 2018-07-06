@@ -57,6 +57,10 @@ class GloveWordVectorizer(BaseWordVectorizer):
         self.vocabulary = self.word_vectors.vocab
         self.ind2word = None #TODO
 
+    def init_sims(self, replace=False):
+
+        self.word_vectors.init_sims(replace)
+
     def get_similarity(self, term1, term2):
         if not hasattr(self, 'word_vectors'):
             raise NotFittedError('Raw documented needed be fed first. Call fit_word_vectors(corpus_file)')
@@ -73,10 +77,18 @@ class GloveWordVectorizer(BaseWordVectorizer):
         
         return result
 
+    def get_word_vector(self, term, use_norm=False):
+        if not hasattr(self, 'word_vectors'):
+            raise NotFittedError('Raw documented needed be fed first to estimate word vectors before\
+             acquiring specific word vector. Call fit_word_vectors(corpus_file)')
+
+        word_vec = self.word_vectors.word_vec(term, use_norm=use_norm)
+        return word_vec
+    
     def __getitem__(self, key):
         if not hasattr(self, 'word_vectors'):
             raise NotFittedError('Raw documented needed be fed first to estimate word vectors before\
-             acquiring specific word vector. Call fit_word_vectors(raw_documents)')
+             acquiring specific word vector. Call fit_word_vectors(corpus_file)')
 
         word_vec = self.word_vectors[key]
 

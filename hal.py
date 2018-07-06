@@ -1,8 +1,5 @@
 #!/usr/bin/python3
-import re
 import pickle
-import six
-from six import string_types
 from datetime import datetime
 
 from collections import Mapping, defaultdict, Counter
@@ -10,10 +7,8 @@ import numbers
 import numpy as np
 import scipy.sparse as sp
 import array
-from operator import itemgetter
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import pairwise_distances
-from gensim import matutils
 
 # from stop_words import ENGLISH_STOP_WORDS
 from base import BaseWordVectorizer, get_vocabulary
@@ -64,7 +59,7 @@ class HalWordVectorizer(BaseWordVectorizer):
                     % min_count)
 
         self.dtype = dtype
-        self.use_sp_matrix = True
+        self.use_sp_matrix = True # for save_model 
         
     def get_dim(self):
         return self.max_features
@@ -76,6 +71,21 @@ class HalWordVectorizer(BaseWordVectorizer):
         mid =  '{}_d{}_window_{}'.format(self.get_name(), self.max_features, self.window_size)
         return mid
 
+    def init_sims(self, replace=False):
+        """
+        Precompute L2-normalized vectors.
+        If `replace` is set, forget the original vectors and only keep the normalized
+        ones = saves lots of memory!
+        """
+        if getattr(self, 'word_vectors_norm', None) is None or replace:
+            print("precomputing L2-norms of word weight vectors")
+            if replace:
+                # normalize of sklearn can deal with sparse matrix
+                self.word_vectors = normalize(self.word_vectors, norm='l2', axis=1, copy=False)
+                self.word_vectors_norm =  self.word_vectors 
+            else:
+                self.word_vectors_norm = normalize(self.word_vectors, norm='l2', axis=1, copy=True)
+    
     def _count_cooccurence(self, docs):
         """Create sparse feature matrix, and vocabulary
         """
@@ -147,20 +157,6 @@ class HalWordVectorizer(BaseWordVectorizer):
 
 #         print(cooccurence_matrix.toarray())
         return cooccurence_matrix
-
-    def init_sims(self, replace=False):
-        """
-        Precompute L2-normalized vectors.
-        If `replace` is set, forget the original vectors and only keep the normalized
-        ones = saves lots of memory!
-        """
-        if getattr(self, 'word_vectors_norm', None) is None or replace:
-            print("precomputing L2-norms of word weight vectors")
-            if replace:
-                self.word_vectors = normalize(self.word_vectors, norm='l2', axis=1, copy=False)
-                self.word_vectors_norm =  self.word_vectors 
-            else:
-                self.word_vectors_norm = normalize(self.word_vectors, norm='l2', axis=1, copy=True)
     
     def fit_word_vectors(self, corpus_path):
 
@@ -216,103 +212,16 @@ class HalWordVectorizer(BaseWordVectorizer):
 
         sim = 1 / (distance + 1)
         return sim
+    
+    def one2many_similarity(self, one_v, many_v, normalized=True):
+        one_v = one_v.reshape(1, -1) # 1*dim
+        many_v = many_v.reshape(-1, self.get_dim()) # n*dim
 
-    def most_similar(self, positive=None, negative=None, topn=10, restrict_vocab=None, indexer=None):
-        """
-        https://github.com/RaRe-Technologies/gensim/blob/develop/gensim/models/keyedvectors.py
+        if not normalized:
+            l2_len = np.sqrt((many_v**2).sum(axis=1)).reshape(-1,1)
+            many_v /= l2_len
+            one_v /= np.sqrt((one_v ** 2).sum(-1))
 
-        Parameters
-        ----------
-        positive : :obj: `list` of :obj: `str`
-            List of words that contribute positively.
-        negative : :obj: `list` of :obj: `str`
-            List of words that contribute negatively.
-        topn : int
-            Number of top-N similar words to return.
-        restrict_vocab : int
-            Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
-            only check the first 10000 word vectors in the vocabulary order. (This may be
-            meaningful if you've sorted the vocabulary by descending frequency.)
-        Returns
-        -------
-        :obj: `list` of :obj: `tuple`
-            Returns a list of tuples (word, similarity)
-        Examples
-        --------
-        >>> trained_model.most_similar(positive=['woman', 'king'], negative=['man'])
-        [('queen', 0.50882536), ...]
-        """
-        if positive is None:
-            positive = []
-        if negative is None:
-            negative = []
-
-        self.init_sims()
-
-        if isinstance(positive, string_types) and not negative:
-            # allow calls like most_similar('dog'), as a shorthand for most_similar(['dog'])
-            positive = [positive]
-
-        # add weights for each word, if not already present; default to 1.0 for positive and -1.0 for negative words
-        positive = [
-            (word, 1.0) if isinstance(word, string_types + (np.ndarray,)) else word
-            for word in positive
-        ]
-        negative = [
-            (word, -1.0) if isinstance(word, string_types + (np.ndarray,)) else word
-            for word in negative
-        ]
-
-        # compute the weighted average of all words
-        all_words, mean = set(), []
-        for word, weight in positive + negative:
-            if isinstance(word, np.ndarray):
-                mean.append(weight * word)
-            else:
-                mean.append(weight * self.get_word_vector(word, use_norm=True))
-                ind = self.vocabulary.get(word)
-                if  ind:
-                    all_words.add(ind)
-        if not mean:
-            raise ValueError("cannot compute similarity with no input")
-        mean = matutils.unitvec(np.array(mean).mean(axis=0)).astype(np.float32)
-
-        if indexer is not None:
-            return indexer.most_similar(mean, topn)
-
-        # limited = self.word_vectors_norm if restrict_vocab is None else self.word_vectors_norm[:restrict_vocab]
-        dists = pairwise_distances(X = self.word_vectors_norm, Y= [mean], metric='euclidean').squeeze() #distance!!
-
-        if not topn:
-            return 1/(dists+1)
-
-        best = matutils.argsort(dists, topn=topn + len(all_words), reverse=False) #dist : small to large
-        # ignore (don't return) words from the input
-        result = [(self.ind2word[ind], 1/ (1+float(dists[ind]))) for ind in best if ind not in all_words]
-        return result[:topn]
-
-    def get_word_vector(self, term, use_norm=False):
-        if not hasattr(self, 'vocabulary') or not hasattr(self, 'word_vectors'):
-            raise NotFittedError('Raw documents needed be fed first to estimate word vectors before\
-             acquiring specific word vector. Call fit_word_vectors(corpus_path)')
-
-        ind = self.vocabulary.get(term)
-        if ind is None:
-            raise KeyError('term {} is not in the vocabulary'.format(term))
-
-        if use_norm:
-            word_vec = self.word_vectors_norm[ind, :]
-        else:
-            word_vec = self.word_vectors[ind, :]
-
-        if sp.issparse(word_vec):
-            word_vec = word_vec.toarray()
-        word_vec = word_vec.squeeze()
-
-        return word_vec
-
-    def __getitem__(self, key):
-
-        word_vec = self.get_word_vector(key)
-        return word_vec
+        dists = pairwise_distances(X = many_v, Y= one_v, metric='euclidean').squeeze() #distance!!
+        sim = 1 / (dists+1)
+        return sim

@@ -46,9 +46,13 @@ class W2vWordVectorizer(BaseWordVectorizer):
         self.vocabulary = self.model.wv.vocab
         self.ind2word = None #TODO
 
+    def init_sims(self, replace=False):
+
+        self.word_vectors.init_sims(replace)
+
     def get_similarity(self, term1, term2):
         if not hasattr(self, 'word_vectors'):
-            raise NotFittedError('Raw documented needed be fed first. Call fit_word_vectors(raw_documents)')
+            raise NotFittedError('Raw documented needed be fed first. Call fit_word_vectors(corpus_path)')
         #cosine sim
         sim = self.word_vectors.similarity(term1, term2)
 
@@ -56,16 +60,24 @@ class W2vWordVectorizer(BaseWordVectorizer):
 
     def most_similar(self, positive=None, negative=None, topn=10, restrict_vocab=None, indexer=None):
         if not hasattr(self, 'word_vectors'):
-            raise NotFittedError('Raw documented needed be fed first. Call fit_word_vectors(raw_documents)')
+            raise NotFittedError('Raw documented needed be fed first. Call fit_word_vectors(corpus_path)')
 
         result = self.word_vectors.most_similar(positive, negative, topn, restrict_vocab, indexer)
         
         return result
-    
+
+    def get_word_vector(self, term, use_norm=False):
+        if not hasattr(self, 'word_vectors'):
+            raise NotFittedError('Raw documented needed be fed first to estimate word vectors before\
+             acquiring specific word vector. Call fit_word_vectors(corpus_path)')
+
+        word_vec = self.word_vectors.word_vec(term, use_norm=use_norm)
+        return word_vec
+
     def __getitem__(self, key):
         if not hasattr(self, 'word_vectors'):
             raise NotFittedError('Raw documented needed be fed first to estimate word vectors before\
-             acquiring specific word vector. Call fit_word_vectors(raw_documents)')
+             acquiring specific word vector. Call fit_word_vectors(corpus_path)')
 
         word_vec = self.word_vectors.__getitem__(key)
 
