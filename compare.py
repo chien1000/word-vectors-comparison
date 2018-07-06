@@ -5,6 +5,8 @@ from config import run_config
 import evaluations
 from evaluations import evaluate_word_sims, evaluate_word_analogies
 from ner_embedding_features.src import enner
+from corpus import LineCorpus
+from base import get_vocabulary
 
 import logging
 import os
@@ -83,13 +85,42 @@ def eval_log_sim(m):
         logger.warning('!model,pearson, spearman, oov_ratio')
         logger.warning('!{},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), pearson[0], spearman[0], oov_ratio))
 
+ind2word=None
 def eval_log_anal(m):
     google_anal = 'data/evaluations/google_analogies.txt'
     logger.warning('# ========= Google Analogies =========')
-    analogies_score, sections, oov_ratio = evaluate_word_analogies(m, m.get_name(), google_anal, restrict_vocab=300000, case_insensitive=True, dummy4unknown=False)
     
-    logger.warning('!model, analogies_score, oov_ratio')
-    logger.warning('!{},{:.4f},{:.4f}'.format(m.get_name(), analogies_score, oov_ratio))
+    restrict_vocab = 300000
+    corpus = LineCorpus(corpus_path)
+    global ind2word
+    if ind2word is None:
+        ind2word, vocab = get_vocabulary(corpus, min_count=run_config['min_count'], sort_by_frequency=True)
+    ok_vocab = set(ind2word[:restrict_vocab])
+
+    print('restrict_vocab = {}'.format(restrict_vocab))
+    analogies_score, sections, oov_ratio = evaluate_word_analogies(m, m.get_name(), google_anal, 
+        ok_vocab=ok_vocab, restrict_vocab=restrict_vocab, case_insensitive=True, dummy4unknown=False)
+    
+    semantic_correct, semantic_incorrect = 0, 0
+    syntactic_correct, syntactic_incorrect = 0, 0
+    for sec in sections:
+        if 'Total' in sec['section']:
+            continue
+
+        if 'gram' in sec['section']:
+            syntactic_correct += len(sec['correct'])
+            syntactic_incorrect += len(sec['incorrect'])
+        else:
+            semantic_correct += len(sec['correct'])
+            semantic_incorrect += len(sec['incorrect'])
+    semantic_score = semantic_correct / (semantic_correct+semantic_incorrect) 
+    syntactic_score = syntactic_correct / (syntactic_correct+syntactic_incorrect) 
+    print('semantic #{}'.format(semantic_correct+semantic_incorrect))
+    print('syntactic #{}'.format(syntactic_correct+syntactic_incorrect))
+
+    logger.warning('!model, analogies_score, semantic_score, syntactic_score, oov_ratio')
+    logger.warning('!{},{:.4f},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), 
+                                            analogies_score, semantic_score, syntactic_score, oov_ratio))
 
 def eval_log_ner(m):
     logger.warning('# ========= CoNLL 2003 NER task =========')
@@ -142,7 +173,7 @@ def eval_log_ner(m):
     logger.warning(stderr.decode('utf-8'))
 
     performance_pattern = r'Macro-average precision, recall, F1: \((.*)\)'
-    performance = re.findall(pattern, stdout)[0].replace(' ','')
+    performance = re.findall(performance_pattern, stdout.decode('utf-8'))[0].replace(' ','')
     logger.warning('!model, precision, recall, F1')
     logger.warning('!{},{}'.format(m.get_name(), performance))
 

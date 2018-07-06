@@ -89,7 +89,7 @@ def evaluate_word_sims(model, name, pairs, delimiter='\t', restrict_vocab=300000
     )
     logger.debug('Pairs with unknown words: %d', oov)
 
-    log_evaluate_word_sims(pearson, spearman, oov_ratio, name, pairs)
+    # log_evaluate_word_sims(pearson, spearman, oov_ratio, name, pairs)
 
     return pearson, spearman, oov_ratio
 
@@ -111,7 +111,7 @@ def log_evaluate_word_analogies(name, section):
             logger.info("{} {}: {:.1f}% ({}/{})".format(name, section['section'], 100.0 * score, correct, correct + incorrect))
             return score
 
-def evaluate_word_analogies(model, name, analogies, restrict_vocab=300000, case_insensitive=True, dummy4unknown=False):
+def evaluate_word_analogies(model, name, analogies, restrict_vocab=None, ok_vocab=None, case_insensitive=True, dummy4unknown=False):
     """Compute performance of the model on an analogy test set.
     This is modern variant of :meth:`~gensim.models.keyedvectors.WordEmbeddingsKeyedVectors.accuracy`, see
     `discussion on GitHub #1935 <https://github.com/RaRe-Technologies/gensim/pull/1935>`_.
@@ -124,6 +124,9 @@ def evaluate_word_analogies(model, name, analogies, restrict_vocab=300000, case_
     analogies : str
         Path to file, where lines are 4-tuples of words, split into sections by ": SECTION NAME" lines.
         See `gensim/test/test_data/questions-words.txt` as example.
+    
+    ok_vocab: iterable
+    
     restrict_vocab : int, optional
         Ignore all 4-tuples containing a word not in the first `restrict_vocab` words.
         This may be meaningful if you've sorted the model vocabulary by descending frequency (which is standard
@@ -142,8 +145,16 @@ def evaluate_word_analogies(model, name, analogies, restrict_vocab=300000, case_
         Overall evaluation score and full lists of correct and incorrect predictions divided by sections.
     """
 
-    ok_vocab = list(model.vocabulary.items()) #restrict_vocab 
-    ok_vocab = {w.lower(): v for w, v in ok_vocab} if case_insensitive else dict(ok_vocab)
+    #TODO: sorted the model vocabulary by descending frequency
+
+    if restrict_vocab is None:
+        restrict_vocab  = len(model.vocabulary)
+
+    if ok_vocab is None: 
+        ok_vocab = set([w for w in model.ind2word[:restrict_vocab]])
+
+    ok_vocab = set([w.lower() for w in ok_vocab]) if case_insensitive else set(ok_vocab)
+
     oov = 0
 
     # print("Evaluating word analogies for top %i words in the model on %s", restrict_vocab, analogies)
@@ -173,10 +184,10 @@ def evaluate_word_analogies(model, name, analogies, restrict_vocab=300000, case_
             if a not in ok_vocab or b not in ok_vocab or c not in ok_vocab or expected not in ok_vocab:
                 oov += 1
                 if dummy4unknown:
-                    logger.debug('Zero accuracy for line #%d with OOV words: %s', line_no, line.strip())
+                    logger.debug('Zero accuracy for line #{} with OOV words: {}'.format(line_no, line.strip()))
                     section['incorrect'].append((a, b, c, expected))
                 else:
-                    logger.debug("Skipping line #%i with OOV words: %s", line_no, line.strip())
+                    logger.debug("Skipping line #{} with OOV words: {}".format(line_no, line.strip()))
                 continue
     #         original_vocab = model.vocabulary
     #         model.vocabulary = ok_vocab
@@ -184,7 +195,7 @@ def evaluate_word_analogies(model, name, analogies, restrict_vocab=300000, case_
             predicted = None
             # find the most likely prediction using 3CosAdd (vector offset) method
             # TODO: implement 3CosMul and set-based methods for solving analogies
-            sims = model.most_similar(positive=[b, c], negative=[a], topn=5, restrict_vocab=restrict_vocab)
+            sims = model.most_similar(positive=[b, c], negative=[a], topn=5, ok_vocab=ok_vocab, restrict_vocab=restrict_vocab)
     #         model.vocabulary = original_vocab
             for element in sims:
                 predicted = element[0].lower() if case_insensitive else element[0]
