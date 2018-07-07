@@ -184,7 +184,8 @@ logger.info('#========= Evaluate models: =========')
 for m in models:
     logger.info('# ' + m.get_name())
 
-for m in models:
+while len(models)>0:
+    m = models.pop(0)
     try:
         logger.info('# --- loading {} ---\n '.format(m.get_name()))
         m.load_model(output_dir)
@@ -200,9 +201,6 @@ for m in models:
             eval_log_anal(m)
         if 'ner' in run_config['eval']:
             eval_log_ner(m)
-
-        #release memory
-        m.word_vectors = None
 
     except Exception as e:
         s = traceback.format_exc()
