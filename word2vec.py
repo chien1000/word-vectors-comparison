@@ -44,7 +44,7 @@ class W2vWordVectorizer(BaseWordVectorizer):
         
         self.word_vectors = self.model.wv #KeyedVectors
         self.vocabulary = self.model.wv.vocab
-        self.ind2word = None #TODO
+        self.ind2word = self.model.wv.index2word 
 
     def init_sims(self, replace=False):
 
@@ -98,7 +98,7 @@ class W2vWordVectorizer(BaseWordVectorizer):
         try:
             self.word_vectors = KeyedVectors.load(mpath)
             self.vocabulary = self.word_vectors.vocab
-            self.ind2word = None
+            self.ind2word = self.word_vectors.index2word
 
         except FileNotFoundError as e:
             print('model loading fails: file does not exist')

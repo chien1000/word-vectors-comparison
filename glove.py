@@ -55,7 +55,7 @@ class GloveWordVectorizer(BaseWordVectorizer):
         glove2word2vec(glove_file, tmp_file)
         self.word_vectors = KeyedVectors.load_word2vec_format(tmp_file)
         self.vocabulary = self.word_vectors.vocab
-        self.ind2word = None #TODO
+        self.ind2word =self.word_vectors.index2word
 
     def init_sims(self, replace=False):
 
@@ -109,7 +109,7 @@ class GloveWordVectorizer(BaseWordVectorizer):
         try:
             self.word_vectors = KeyedVectors.load(mpath)
             self.vocabulary = self.word_vectors.vocab
-            self.ind2word = None
+            self.ind2word = self.word_vectors.index2word
 
         except FileNotFoundError as e:
             print('model loading fails: file does not exist')
