@@ -201,6 +201,9 @@ for m in models:
         if 'ner' in run_config['eval']:
             eval_log_ner(m)
 
+        #release memory
+        m.word_vectors = None
+
     except Exception as e:
         s = traceback.format_exc()
         logger.error('# error occurred when training and evaluating {}'.format(m.get_name()))
