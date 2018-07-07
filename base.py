@@ -170,7 +170,7 @@ class BaseWordVectorizer(object):
 
     # def one2many_similarity(self, one_v, many_v):
 
-    def most_similar(self, positive=None, negative=None, topn=10, ok_vocab=None, restrict_vocab=None):
+    def most_similar(self, positive=None, negative=None, topn=10, restrict_vocab=None):
         """
         https://github.com/RaRe-Technologies/gensim/blob/develop/gensim/models/keyedvectors.py
 
@@ -198,9 +198,6 @@ class BaseWordVectorizer(object):
         """
 
         #TODO: use restrict_vocab : sort vocab by frequencies
-        if ok_vocab is not None:
-            original_vocab = self.vocabulary
-            self.vocabulary = {w:self.vocabulary[w] for w in ok_vocab}
 
         if positive is None:
             positive = []
@@ -237,26 +234,13 @@ class BaseWordVectorizer(object):
             raise ValueError("cannot compute similarity with no input")
         mean = matutils.unitvec(np.array(mean).mean(axis=0)).astype(np.float32)
 
-        limited_ind = list(self.vocabulary.values())
-
-        if sp.issparse(self.word_vectors_norm):
-            self.word_vectors_norm = self.word_vectors_norm.toarray()
-        limited = np.take(self.word_vectors_norm, limited_ind, axis=0)
-
-        # sims = np.dot(limited, mean) #cosine of two unit vectors = dot
+        limited =  self.word_vectors_norm if restrict_vocab is None else self.word_vectors_norm[:restrict_vocab,]
         sims = self.one2many_similarity(mean, limited)
         if not topn:
             return sims
-        best_of_limited = matutils.argsort(sims, topn=topn + len(all_words), reverse=True)
-        best = [limited_ind[i] for i in best_of_limited]
+
+        best = matutils.argsort(sims, topn=topn + len(all_words), reverse=True)
         # ignore (don't return) words from the input
-        result = []
-        for ind, l_ind in zip(best, best_of_limited):
-            if ind not in all_words: #all_words = positive + negative words 
-                result.append((self.ind2word[ind], sims[l_ind]))
-       
-        #recover vocabulary
-        if ok_vocab is not None:
-            self.vocabulary = original_vocab
+        result = [(self.ind2word[ind], float(sims[ind])) for ind in best if ind not in all_words]
 
         return result[:topn]

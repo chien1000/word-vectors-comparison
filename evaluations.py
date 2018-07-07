@@ -1,6 +1,8 @@
 import gensim.utils
 import gensim.matutils 
 from scipy import stats
+import scipy.sparse as sp
+import numpy as np
 import logging
 import os
 
@@ -111,7 +113,7 @@ def log_evaluate_word_analogies(name, section):
             logger.info("{} {}: {:.1f}% ({}/{})".format(name, section['section'], 100.0 * score, correct, correct + incorrect))
             return score
 
-def evaluate_word_analogies(model, name, analogies, restrict_vocab=None, ok_vocab=None, case_insensitive=True, dummy4unknown=False):
+def evaluate_word_analogies(model, name, analogies, restrict_vocab=300000, words_in_order=None, case_insensitive=True, dummy4unknown=False):
     """Compute performance of the model on an analogy test set.
     This is modern variant of :meth:`~gensim.models.keyedvectors.WordEmbeddingsKeyedVectors.accuracy`, see
     `discussion on GitHub #1935 <https://github.com/RaRe-Technologies/gensim/pull/1935>`_.
@@ -125,12 +127,15 @@ def evaluate_word_analogies(model, name, analogies, restrict_vocab=None, ok_voca
         Path to file, where lines are 4-tuples of words, split into sections by ": SECTION NAME" lines.
         See `gensim/test/test_data/questions-words.txt` as example.
     
-    ok_vocab: iterable
-    
     restrict_vocab : int, optional
         Ignore all 4-tuples containing a word not in the first `restrict_vocab` words.
         This may be meaningful if you've sorted the model vocabulary by descending frequency (which is standard
         in modern word embedding models).
+    
+    words_in_order : list, optional
+        sort vocabulary by this order, if not provided, the vocabulary is assumed to be sort descending frequency
+        (then apply the restrict_vocab parameter)
+
     case_insensitive : bool, optional
         If True - convert all words to their uppercase form before evaluating the performance.
         Useful to handle case-mismatch between training tokens and words in the test set.
@@ -147,12 +152,25 @@ def evaluate_word_analogies(model, name, analogies, restrict_vocab=None, ok_voca
 
     #TODO: sorted the model vocabulary by descending frequency
 
-    if restrict_vocab is None:
-        restrict_vocab  = len(model.vocabulary)
+    model.init_sims() # compute word_vectors_norm 
+    if words_in_order is not None and hasattr(model, 'word_vectors_norm'): #model沒有word_vectors_norm的假設本來字典就有排序
+        new_ind2word = [w for w in words_in_order if w in model.vocabulary]
+        new_vocab = {w:ind for ind, w in enumerate(new_ind2word)}
+        n2o_mapping = [model.vocabulary[w] for w in new_ind2word]
+        if sp.issparse(model.word_vectors_norm):
+            new_vectors = np.take(model.word_vectors_norm.toarray(), n2o_mapping, axis=0)
+        else:
+            new_vectors = np.take(model.word_vectors_norm, n2o_mapping, axis=0)
 
-    if ok_vocab is None: 
-        ok_vocab = set([w for w in model.ind2word[:restrict_vocab]])
+        original_vocab = model.vocabulary
+        original_ind2word = model.ind2word
+        original_vectors = model.word_vectors_norm
 
+        model.vocabulary = new_vocab
+        model.ind2word = new_ind2word
+        model.word_vectors_norm = new_vectors
+    
+    ok_vocab = model.ind2word[:restrict_vocab]
     ok_vocab = set([w.lower() for w in ok_vocab]) if case_insensitive else set(ok_vocab)
 
     oov = 0
@@ -189,14 +207,13 @@ def evaluate_word_analogies(model, name, analogies, restrict_vocab=None, ok_voca
                 else:
                     logger.debug("Skipping line #{} with OOV words: {}".format(line_no, line.strip()))
                 continue
-    #         original_vocab = model.vocabulary
-    #         model.vocabulary = ok_vocab
+    
             ignore = {a, b, c}  # input words to be ignored
             predicted = None
             # find the most likely prediction using 3CosAdd (vector offset) method
             # TODO: implement 3CosMul and set-based methods for solving analogies
-            sims = model.most_similar(positive=[b, c], negative=[a], topn=5, ok_vocab=ok_vocab, restrict_vocab=restrict_vocab)
-    #         model.vocabulary = original_vocab
+            sims = model.most_similar(positive=[b, c], negative=[a], topn=5, restrict_vocab=restrict_vocab)
+
             for element in sims:
                 predicted = element[0].lower() if case_insensitive else element[0]
                 if predicted in ok_vocab and predicted not in ignore:
@@ -227,6 +244,13 @@ def evaluate_word_analogies(model, name, analogies, restrict_vocab=None, ok_voca
     #     )
     analogies_score = log_evaluate_word_analogies(name, total)
     sections.append(total)
+
+    #recover
+    if words_in_order is not None and hasattr(model, 'word_vectors_norm'):
+        model.vocabulary = original_vocab
+        model.ind2word = original_ind2word
+        model.word_vectors_norm = original_vectors
+
     # Return the overall score and the full lists of correct and incorrect analogies
     return analogies_score, sections, oov_ratio
 

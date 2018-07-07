@@ -85,21 +85,20 @@ def eval_log_sim(m):
         logger.warning('!model,pearson, spearman, oov_ratio')
         logger.warning('!{},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), pearson[0], spearman[0], oov_ratio))
 
-ind2word=None
+words_in_order=None
 def eval_log_anal(m):
     google_anal = 'data/evaluations/google_analogies.txt'
     logger.warning('# ========= Google Analogies =========')
     
     restrict_vocab = 300000
     corpus = LineCorpus(corpus_path)
-    global ind2word
-    if ind2word is None:
-        ind2word, vocab = get_vocabulary(corpus, min_count=run_config['min_count'], sort_by_frequency=True)
-    ok_vocab = set(ind2word[:restrict_vocab])
-
+    global words_in_order
+    if words_in_order is None:
+        words_in_order, vocab = get_vocabulary(corpus, min_count=run_config['min_count'], sort_by_frequency=True)
+    
     print('restrict_vocab = {}'.format(restrict_vocab))
     analogies_score, sections, oov_ratio = evaluate_word_analogies(m, m.get_name(), google_anal, 
-        ok_vocab=ok_vocab, restrict_vocab=restrict_vocab, case_insensitive=True, dummy4unknown=False)
+        words_in_order=words_in_order, restrict_vocab=restrict_vocab, case_insensitive=True, dummy4unknown=False)
     
     semantic_correct, semantic_incorrect = 0, 0
     syntactic_correct, syntactic_incorrect = 0, 0
