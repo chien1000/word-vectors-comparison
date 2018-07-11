@@ -5,6 +5,8 @@ from config import run_config
 import evaluations
 from evaluations import evaluate_word_sims, evaluate_word_analogies
 from ner_embedding_features.src import enner
+import tune_crf
+from tune_crf import tune_lbfgs, tune_l2sgd
 from corpus import LineCorpus
 from base import get_vocabulary
 
@@ -69,7 +71,7 @@ fh.setFormatter(log_formatter)
 
 logger.addHandler(fh)
 evaluations.logger = logger #TODO: use a seperate file for logging??
-
+# tune_crf.logger = logger
 
 #evaluations
 def eval_log_sim(m):
@@ -134,6 +136,12 @@ def eval_log_ner(m):
         os.mkdir(ner_dir)
     except FileExistsError as e:
         pass
+    
+    logger.info('# {} : Tuning Parameters'.format(m.get_name()))
+    best_c2, validate_performance = tune_l2sgd(m, output_dir)
+    # best_c1, best_c2, validate_performance = tune_crf(m, output_dir)
+    logger.info('# Tuning results:')
+    logger.info('\n'.join(validate_performance))
 
     logger.info('# {} : generating ner features'.format(m.get_name()))
     ner_train_features = os.path.join(ner_dir, 'train_features_' + m.get_name() + '.txt')
@@ -145,12 +153,16 @@ def eval_log_ner(m):
         enner.generate_crfsuite_features(ner_test_data, ner_test_features,
                                           emb_type='de', wv=m)
 
-    ner_model = os.path.join(ner_dir, 'model_' + m.get_name())
+    ner_model = os.path.join(ner_dir, 'model_l2sgd_' + m.get_name())
 
     # crfsuite training
     logger.info('# training crf model')
+    # bash_args = '~/local/bin/crfsuite learn -m {} -p feature.possible_states=1 \
+    # -p feature.possible_transitions=1 -a lbfgs -p max_iterations=500 -p c1={} \
+    # -p c2={} {}'.format(ner_model, best_c1, best_c2, ner_train_features)
+    
     bash_args = '~/local/bin/crfsuite learn -m {} -p feature.possible_states=1 \
-    -p feature.possible_transitions=1 -a l2sgd -p c2={} {}'.format(ner_model, cost, ner_train_features)
+    -p feature.possible_transitions=1 -a l2sgd -p c2={} {}'.format(ner_model, best_c2, ner_train_features)
     # bash_args = ['~/local/bin/crfsuite learn','-m', ner_model,
     #              '-p', 'feature.possible_states=1', '-p', 'feature.possible_transitions=1',
     #              '-a', 'l2sgd', '-p', 'c2={}'.format(cost), ner_train_features]
