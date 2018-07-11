@@ -1,15 +1,19 @@
 import numpy as np
 from gensim.models.ldamodel import LdaModel
+from gensim.models.ldamulticore import LdaMulticore
 from gensim.corpora.textcorpus import TextCorpus
 from sklearn.metrics.pairwise import cosine_similarity
 
 from corpus import LineCorpus, MyTextCorpus
 from base import BaseWordVectorizer, get_vocabulary
 from exceptions import *
+import os
+import logging
 
 class LdaWordVectorizer(BaseWordVectorizer):
     """docstring for LdaWordVectorizer"""
-    def __init__(self, num_topics=50, alpha=1, eta=0.01, passes=1, random_state=None, min_count=0):
+    def __init__(self, num_topics=50, alpha=1, eta=0.01, passes=1, 
+        random_state=None, min_count=0, max_vocab_size=None):
         # super(LdaWordVectorizer, self).__init__()
         self.num_topics = num_topics 
         self.alpha = alpha
@@ -20,6 +24,7 @@ class LdaWordVectorizer(BaseWordVectorizer):
         self.random_state = random_state
 
         self.min_count = min_count
+        self.max_vocab_size = max_vocab_size
 
     def get_dim(self):
         return self.num_topics
@@ -33,13 +38,22 @@ class LdaWordVectorizer(BaseWordVectorizer):
         return mid
 
     def fit_word_vectors(self, corpus_path):
+        # logger 
+        log_file = os.path.join('exp_results', self.get_mid() + '_log.txt')
+        logging.basicConfig(filename=log_file,
+                    format="%(asctime)s:%(levelname)s:%(message)s",
+                    level=logging.INFO)
 
         corpus = TextCorpus(corpus_path, tokenizer=str.split, token_filters=[])
         # corpus = MyTextCorpus(corpus_path, tokenizer=str.split,
         #     token_filters=[], min_count=self.min_count) #character_filters=[lambda x:x],
         id2word = corpus.dictionary #https://github.com/RaRe-Technologies/gensim/blob/develop/gensim/corpora/dictionary.py
         
-        self.ind2word, self.vocabulary = get_vocabulary(LineCorpus(corpus_path), self.min_count)
+        self.ind2word, self.vocabulary = get_vocabulary(LineCorpus(corpus_path), self.min_count, sort_by_frequency=True)
+        if self.max_vocab_size is not None:
+            self.ind2word = self.ind2word[:self.max_vocab_size]
+            self.vocabulary = {w:i for i, w in enumerate(self.ind2word)}
+
         id2word.token2id = self.vocabulary
         id2word.id2token = self.ind2word
         id2word.dfs = {} # useless here
@@ -48,6 +62,10 @@ class LdaWordVectorizer(BaseWordVectorizer):
         self.model = LdaModel(corpus, num_topics=self.num_topics,
             alpha=self.alpha, eta=self.eta, passes=self.passes, 
             id2word=id2word, random_state=self.random_state)
+        
+        # self.model = LdaMulticore(corpus, num_topics=self.num_topics,
+        #     alpha=self.alpha, eta=self.eta, passes=self.passes, 
+        #     id2word=id2word, random_state=self.random_state, workers=2)
         
         # self.vocabulary = self.model.id2word.token2id
         # self.ind2word =  self.model.id2word.id2token
