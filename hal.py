@@ -171,10 +171,10 @@ class HalWordVectorizer(BaseWordVectorizer):
         if self.max_features: #conserve top k cols with highest variance
             # compute variance 
             # E[X^2] - (E[X])^2 or np.var?
-            squared_of_mean = np.power(cooccurence_matrix.mean(0), 2)
+            squared_of_mean = np.square(cooccurence_matrix.mean(0))
             assert (squared_of_mean>=0).all()
             
-            cooccurence_matrix.data = np.power(cooccurence_matrix.data, 2)
+            cooccurence_matrix.data = np.square(cooccurence_matrix.data)
             assert (cooccurence_matrix.data >= 0).all()
             mean_of_squared = cooccurence_matrix.mean(0)
 
