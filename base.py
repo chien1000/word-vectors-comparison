@@ -235,6 +235,9 @@ class BaseWordVectorizer(object):
         mean = matutils.unitvec(np.array(mean).mean(axis=0)).astype(np.float32)
 
         limited =  self.word_vectors_norm if restrict_vocab is None else self.word_vectors_norm[:restrict_vocab,]
+        if sp.issparse(limited):
+            limited = limited.toarray()
+            
         sims = self.one2many_similarity(mean, limited)
         if not topn:
             return sims
