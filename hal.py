@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 import pickle
 from datetime import datetime
+import os
+import pickle
 
 from collections import Mapping, defaultdict, Counter
 import numbers
@@ -11,7 +13,7 @@ from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import pairwise_distances
 
 # from stop_words import ENGLISH_STOP_WORDS
-from base import BaseWordVectorizer, get_vocabulary
+from base import BaseWordVectorizer, get_vocabulary, MODEL_PATH
 from corpus import LineCorpus
 from exceptions import *
 
@@ -160,13 +162,33 @@ class HalWordVectorizer(BaseWordVectorizer):
     
     def fit_word_vectors(self, corpus_path):
 
-        docs = LineCorpus(corpus_path)
-        # filter rare words according to self.min_count
-        self.ind2word, self.vocabulary = get_vocabulary(docs, self.min_count)
-        print('vocabulary size: {}'.format(len(self.vocabulary)))
-
         #count cooccurence
-        cooccurence_matrix = self._count_cooccurence(docs)
+        corpus_name = os.path.splitext(os.path.basename(corpus_path))[0]
+        save_com_path =  '{}_{}_mc{}_com.npz'.format(self.get_name(), corpus_name, self.min_count)
+        save_com_path = os.path.join(MODEL_PATH, save_com_path)
+        save_ind2word_path =  '{}_{}_mc{}_ind2word.bin'.format(self.get_name(), corpus_name, self.min_count)
+        save_ind2word_path = os.path.join(MODEL_PATH, save_ind2word_path)
+
+        try:
+            cooccurence_matrix = sp.load_npz(save_com_path)
+            with open(save_ind2word_path, 'rb') as fin:
+                self.ind2word = pickle.load(fin)
+                self.vocabulary = {w:i for i, w in enumerate(self.ind2word)}
+
+                print('load existed cooccurence_matrix and vocab')
+                print('vocabulary size: {}'.format(len(self.vocabulary)))
+                
+        except Exception as e:
+            docs = LineCorpus(corpus_path)
+            # filter rare words according to self.min_count
+            self.ind2word, self.vocabulary = get_vocabulary(docs, self.min_count)
+            print('vocabulary size: {}'.format(len(self.vocabulary)))
+
+            cooccurence_matrix = self._count_cooccurence(docs)
+            sp.save_npz(save_com_path, cooccurence_matrix)
+            with open(save_ind2word_path, 'wb') as fout:
+                pickle.dump(self.ind2word, fout)
+
 
         if self.max_features: #conserve top k cols with highest variance
             # compute variance 
