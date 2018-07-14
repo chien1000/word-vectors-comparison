@@ -1,5 +1,6 @@
 import numpy as np
 from gensim.models.ldamodel import LdaModel
+from gensim.models.callbacks import PerplexityMetric, Callback
 from gensim.models.ldamulticore import LdaMulticore
 from gensim.corpora.textcorpus import TextCorpus
 from sklearn.metrics.pairwise import cosine_similarity
@@ -37,9 +38,10 @@ class LdaWordVectorizer(BaseWordVectorizer):
                                                                                         self.alpha, self.eta, self.passes)
         return mid
 
-    def fit_word_vectors(self, corpus_path):
+    def fit_word_vectors(self, corpus_path, holdout_path=None):
         # logger 
-        log_file = os.path.join('exp_results', self.get_mid() + '_log.txt')
+        corpus_name = os.path.splitext(os.path.basename(corpus_path))[0]
+        log_file = os.path.join('exp_results', 'log_{}_{}.txt'.format(corpus_name, self.get_mid()))
         logging.basicConfig(filename=log_file,
                     format="%(asctime)s:%(levelname)s:%(message)s",
                     level=logging.INFO)
@@ -59,9 +61,17 @@ class LdaWordVectorizer(BaseWordVectorizer):
         id2word.dfs = {} # useless here
         print('vocabulary size: {}'.format(len(self.vocabulary)))
 
+        if holdout_path is not None:
+            holdout_corpus = TextCorpus(holdout_path, tokenizer=str.split, token_filters=[])
+            perplexity_logger = PerplexityMetric(corpus=holdout_corpus, logger='shell') 
+            callbacks = [perplexity_logger]
+        else:
+            callbacks = None
+
         self.model = LdaModel(corpus, num_topics=self.num_topics,
             alpha=self.alpha, eta=self.eta, passes=self.passes, 
-            id2word=id2word, random_state=self.random_state)
+            id2word=id2word, random_state=self.random_state,
+            callbacks=callbacks)
         
         # self.model = LdaMulticore(corpus, num_topics=self.num_topics,
         #     alpha=self.alpha, eta=self.eta, passes=self.passes, 

@@ -202,7 +202,11 @@ while len(models)>0:
         m.load_model(output_dir)
         if m.word_vectors is None:
             logger.info('# --- training {} ---\n '.format(m.get_name()))
-            m.fit_word_vectors(corpus_path)
+
+            if m.get_name() in  run_config['holdout_test'] :
+                m.fit_word_vectors(corpus_path, run_config['holdout_path'])
+            else:
+                m.fit_word_vectors(corpus_path)
             m.save_model(output_dir)
 
         #evalutaions
