@@ -77,8 +77,23 @@ evaluations.logger = logger #TODO: use a seperate file for logging??
 def eval_log_sim(m):
     wordsim353 = 'data/evaluations/wordsim353/combined.csv'
     rg = 'data/evaluations/rg_sim.csv'
-    sim_datasets = [wordsim353, rg]
-    sim_dataset_names = ['WordSim353', 'Rubenstein and Goodenough']
+    rw = 'data/evaluations/rw/rw_sim.csv'
+    men = 'data/evaluations/MEN/MEN_sim.csv'
+    simlex999 = 'data/evaluations/SimLex-999/SimLex-999.csv'
+    simlex999_adj = 'data/evaluations/SimLex-999/SimLex-999-adj.csv'
+    simlex999_v = 'data/evaluations/SimLex-999/SimLex-999-v.csv'
+    simlex999_n = 'data/evaluations/SimLex-999/SimLex-999-n.csv'
+    simlex999_cq1 = 'data/evaluations/SimLex-999/SimLex-999-concreteQ1.csv'
+    simlex999_cq4 = 'data/evaluations/SimLex-999/SimLex-999-concreteQ4.csv'
+    simlex999_a333 = 'data/evaluations/SimLex-999/SimLex-999-assoc333.csv'
+
+    sim_datasets = [wordsim353, rg, rw, men, 
+                               simlex999, simlex999_adj, simlex999_v, simlex999_n,
+                                simlex999_cq1, simlex999_cq4, simlex999_a333]
+    sim_dataset_names = ['WordSim353', 'Rubenstein and Goodenough', 
+                                           'Rare Words', 'MEN',
+                                           'SimLex-999', 'SimLex-999-adj', 'SimLex-999-v', 'SimLex-999-n',
+                                           'SimLex-999-concreteQ1', 'SimLex-999-concreteQ4', 'SimLex-999-assoc333' ]
 
     for dataset, dataset_name in zip(sim_datasets, sim_dataset_names):
         logger.warning('# ========= {} ========='.format(dataset_name))
