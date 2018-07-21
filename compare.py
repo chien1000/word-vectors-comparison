@@ -4,6 +4,7 @@ from config import run_config
 
 import evaluations
 from evaluations import evaluate_word_sims, evaluate_word_analogies
+from plot_wiki_category import plot_wiki_category
 from ner_embedding_features.src import enner
 import tune_crf
 from tune_crf import tune_lbfgs, tune_l2sgd
@@ -218,7 +219,7 @@ while len(models)>0:
         if m.word_vectors is None:
             logger.info('# --- training {} ---\n '.format(m.get_name()))
 
-            if m.get_name() in  run_config['holdout_test'] :
+            if 'holdout_test' in run_config and m.get_name() in  run_config['holdout_test'] :
                 m.fit_word_vectors(corpus_path, run_config['holdout_path'])
             else:
                 m.fit_word_vectors(corpus_path)
@@ -231,6 +232,16 @@ while len(models)>0:
             eval_log_anal(m)
         if 'ner' in run_config['eval']:
             eval_log_ner(m)
+
+
+        if run_config.get('plot_wiki', None):
+            print('plot wiki category')
+            plot_dir = os.path.join(output_dir, 'figs')
+            try:
+                os.mkdir(plot_dir)
+            except FileExistsError as e:
+                pass
+            plot_wiki_category(m, 50, plot_dir)
 
     except Exception as e:
         s = traceback.format_exc()
