@@ -17,6 +17,7 @@ import json
 import traceback
 import subprocess
 import re
+from collections import defaultdict
 
 #logging
 
@@ -76,6 +77,7 @@ evaluations.logger = logger #TODO: use a seperate file for logging??
 
 #evaluations
 def eval_log_sim(m):
+    results = {}
     wordsim353 = 'data/evaluations/wordsim353/combined.csv'
     rg = 'data/evaluations/rg_sim.csv'
     rw = 'data/evaluations/rw/rw_sim.csv'
@@ -99,9 +101,12 @@ def eval_log_sim(m):
     for dataset, dataset_name in zip(sim_datasets, sim_dataset_names):
         logger.warning('# ========= {} ========='.format(dataset_name))
         pearson, spearman, oov_ratio = evaluate_word_sims(m, m.get_name(), dataset,  delimiter=',')
-        
+        results[dataset_name]= '{},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), pearson[0], spearman[0], oov_ratio)
+
         logger.warning('!model,pearson, spearman, oov_ratio')
         logger.warning('!{},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), pearson[0], spearman[0], oov_ratio))
+
+    return results
 
 words_in_order=None
 def eval_log_anal(m):
@@ -138,6 +143,11 @@ def eval_log_anal(m):
     logger.warning('!model, analogies_score, semantic_score, syntactic_score, oov_ratio')
     logger.warning('!{},{:.4f},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), 
                                             analogies_score, semantic_score, syntactic_score, oov_ratio))
+
+    result = {}
+    result['Analogies'] = '{},{:.4f},{:.4f},{:.4f},{:.4f}'.format(m.get_name(), 
+                                            analogies_score, semantic_score, syntactic_score, oov_ratio)
+    return result
 
 def eval_log_ner(m):
     logger.warning('# ========= CoNLL 2003 NER task =========')
@@ -204,6 +214,10 @@ def eval_log_ner(m):
     logger.warning('!model, precision, recall, F1')
     logger.warning('!{},{}'.format(m.get_name(), performance))
 
+    result = {}
+    result['NER'] = '{},{}'.format(m.get_name(), performance)
+    return result
+
 
 #model
 models = run_config['models']
@@ -211,6 +225,7 @@ logger.info('#========= Evaluate models: =========')
 for m in models:
     logger.info('# ' + m.get_name())
 
+all_performance = defaultdict(list)
 while len(models)>0:
     m = models.pop(0)
     try:
@@ -226,13 +241,20 @@ while len(models)>0:
             m.save_model(output_dir)
 
         #evalutaions
+        result = {}
         if 'sim' in run_config['eval']:
-            eval_log_sim(m)
+            result1 = eval_log_sim(m)
+            result.update(result1)
         if 'anal' in run_config['eval']:
-            eval_log_anal(m)
+            result2 = eval_log_anal(m)
+            result.update(result2) 
         if 'ner' in run_config['eval']:
-            eval_log_ner(m)
+            result3 = eval_log_ner(m)
+            result.update(result3)
 
+        # result = {**result1, **result2, **result3} #combine dict
+        for ename in result:
+            all_performance[ename].append(result[ename])
 
         if run_config.get('plot_wiki', None):
             print('plot wiki category')
@@ -248,4 +270,8 @@ while len(models)>0:
         logger.error('# error occurred when training and evaluating {}'.format(m.get_name()))
         logger.error(s)
 
+#write out
+for ename in all_performance:
+    logger.warning(ename)
+    logger.warning('\n'+'\n'.join(all_performance[ename]))
 
