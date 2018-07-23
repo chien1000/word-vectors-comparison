@@ -165,20 +165,20 @@ class CoalsWordVectorizer(HalWordVectorizer):
     
         deno = t_sum*cooccurence_matrix.tocsr() - multi_rsum_csum.tocsr()
 
-        row_d = np.multiply(row_sum , (t_sum - row_sum))
-        col_d = np.multiply(col_sum , (t_sum - col_sum))
+        row_d = np.multiply(np.sqrt(row_sum) , np.sqrt((t_sum - row_sum)))
+        col_d = np.multiply(np.sqrt(col_sum ), np.sqrt((t_sum - col_sum)))
         assert (row_d >=0).all() #check overflow
         assert (col_d >=0).all() #check overflow
       
         col_d_target_value = col_d.take(cooccurence_matrix.col).A.squeeze()
         col_d_target = sp.coo_matrix((col_d_target_value, 
                                                     (cooccurence_matrix.row, cooccurence_matrix.col)))
-        col_d_target.data = 1 / np.sqrt(col_d_target.data)
+        col_d_target.data = 1 / col_d_target.data
 
         row_d_target_value = row_d.take(cooccurence_matrix.row).A.squeeze()
         row_d_target = sp.coo_matrix((row_d_target_value, 
                                                     (cooccurence_matrix.row, cooccurence_matrix.col)))
-        row_d_target.data = 1 / np.sqrt(row_d_target.data)
+        row_d_target.data = 1 / row_d_target.data
 
         cooccurence_matrix = deno.multiply(col_d_target.tocsr()).multiply(row_d_target.tocsr())
         
