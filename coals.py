@@ -2,7 +2,10 @@ from collections import defaultdict, Counter
 import six
 from six import string_types
 from datetime import datetime
+import os 
+import pickle
 
+from base import get_vocabulary, MODEL_PATH
 from hal import HalWordVectorizer, _make_int_array
 from corpus import LineCorpus
 from stop_words import ENGLISH_CLOSED_CLASS_WORDS
@@ -117,37 +120,42 @@ class CoalsWordVectorizer(HalWordVectorizer):
 
     def fit_word_vectors(self, corpus_path):
 
-        # self._validate_vocabulary()
-        docs = LineCorpus(corpus_path)
+        corpus_name = os.path.splitext(os.path.basename(corpus_path))[0]
+        save_com_path =  '{}_{}_mc{}_w{}_com.npz'.format(self.get_name(), corpus_name, self.min_count, self.window_size)
+        save_com_path = os.path.join(MODEL_PATH, save_com_path)
+        save_ind2word_path =  '{}_{}_mc{}_w{}_ind2word.bin'.format(self.get_name(), corpus_name, self.min_count, self.window_size)
+        save_ind2word_path = os.path.join(MODEL_PATH, save_ind2word_path)
 
-        # filter rare words according to self.min_count
-        word_counter = Counter()
-        for doc in docs:
-            word_counter.update(doc.split())
+        try:
+            cooccurence_matrix = sp.load_npz(save_com_path)
+            with open(save_ind2word_path, 'rb') as fin:
+                self.ind2word = pickle.load(fin)
+                self.vocabulary = {w:i for i, w in enumerate(self.ind2word)}
 
-        vocabulary = {}    
-        freq_count = 0
-        for w, c in word_counter.items():
-            if c >= self.min_count and w not in self.stop_words:
-                vocabulary[w] = freq_count
-                freq_count+=1
-        self.vocabulary = vocabulary
-        self.ind2word = [None] * len(self.vocabulary)
-        for k, v in self.vocabulary.items():
-            self.ind2word[v] = k
-        print('vocabulary size: {}'.format(len(vocabulary)))
+            print('load existed cooccurence_matrix and vocab')
+            print('vocabulary size: {}'.format(len(self.vocabulary)))
+            
+        except Exception as e:
 
-        cooccurence_matrix = self._count_cooccurence(docs)
-        
+            docs = LineCorpus(corpus_path)
+            self.ind2word, self.vocabulary = get_vocabulary(docs, 
+                   self.min_count, sort_by_frequency=True)
+            #remove stopwords:
+            self.ind2word = [w for w in self.ind2word if w not in self.stop_words]
+            self.vocabulary = {w:i for i, w in enumerate(self.ind2word)}
+            print('vocabulary size: {}'.format(len(self.vocabulary)))
+
+            cooccurence_matrix = self._count_cooccurence(docs)
+            sp.save_npz(save_com_path, cooccurence_matrix)
+            with open(save_ind2word_path, 'wb') as fout:
+                pickle.dump(self.ind2word, fout)
+
         if self.max_features: #discard all but the k columns reflecting the most common open-class words
             k = self.max_features
-            topk_words = word_counter.most_common(k+len(self.stop_words)) #
-            topk_ind = [self.vocabulary[w] for w, c in topk_words if w in self.vocabulary]
-            topk_ind = topk_ind[:k]
-            cooccurence_matrix = cooccurence_matrix[:, topk_ind]
-
+            #vocabulary has been ordered by freqeuncy decreasingly
+            cooccurence_matrix = cooccurence_matrix[:, :k] 
             #reserved features
-            self.reserved_features = [self.ind2word[i] for i in topk_ind]
+            self.reserved_features = self.ind2word[:k]
 
         #normalize
         ##convert counts to word pair correlations
