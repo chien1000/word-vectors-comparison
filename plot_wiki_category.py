@@ -1,4 +1,5 @@
 import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import numpy as np
@@ -14,15 +15,16 @@ def plot_wiki_category(m, category_limit=300, save_path=None):
         category_instances = json.load(fin)
 
     # cat2colors = {cat:  np.random.rand(1)[0] for i, cat in enumerate(category_instances.keys())}
-    cat2colors = {cat:  'C{}'.format(i) for i, cat in enumerate(category_instances.keys())}
-
+    selected_colors = ['rosybrown', 'mediumblue', 'goldenrod','forestgreen','darkorchid','crimson']
+    cat2colors = {cat:selected_colors[i] for i, cat in enumerate(category_instances.keys())}
+    
     vectors = []
     terms = []
     colors = []
     cat_cum = {}
     last_cat_count=0
     for category, instances in category_instances.items():
-        np.random.shuffle(instances)
+        # np.random.shuffle(instances)
 
         cat_count = 0
         for t in instances:
@@ -44,7 +46,7 @@ def plot_wiki_category(m, category_limit=300, save_path=None):
     tsne_model = TSNE(perplexity=40, n_components=2, init='pca', n_iter=1000, random_state=23, verbose=0)
     Yt = tsne_model.fit_transform(vectors)
 
-    mpl.style.use('ggplot')
+    mpl.style.use('seaborn-dark-palette')
 
     plt.figure(figsize=(10,10), dpi=100)
     # plt.title("tSNE Plot")
@@ -68,7 +70,7 @@ def plot_wiki_category(m, category_limit=300, save_path=None):
     plt.xlim(xmin, xmax)
     plt.ylim(ymin, ymax)   
 
-    plt.legend(loc='best', ncol=3, markerscale=3)
+    plt.legend(loc='lower right', ncol=3, markerscale=5)
 
     if save_path:
         save_file = os.path.join(save_path, 'wiki_plot_{}.png'.format(m.get_mid()))
