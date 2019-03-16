@@ -2,13 +2,13 @@
 
 ## Methods compared:
 
-- [LDA](#1)
-- [LSA](#2)
-- [HAL](#3)
-- [COALS](#4)
-- [GloVe](#5)
-- [CBOW](#6)
-- [Skip-gram](#6)
+- [LDA [1]](#1)
+- [LSA [2]](#2)
+- [HAL [3]](#3)
+- [COALS [4]](#4)
+- [GloVe [5]](#5)
+- [CBOW [6]](#6)
+- [Skip-gram [6]](#6)
 
 ## Evaluations:
 
